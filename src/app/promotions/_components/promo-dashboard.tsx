@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/components/auth-provider";
-import { isAdmin } from "@/lib/auth";
+import { isAdmin } from "@/lib/client-auth";
 import PromoForm from "./promo-form";
 import PromoTable from "./promo-table";
 import SignInCard from "./sign-in-card";

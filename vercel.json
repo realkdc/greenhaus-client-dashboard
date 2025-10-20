@@ -1,0 +1,6 @@
+{
+  "crons": [
+    { "path": "/api/push/prune-invalid", "schedule": "0 3 * * *" }
+  ]
+}
+

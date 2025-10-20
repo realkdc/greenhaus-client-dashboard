@@ -1,136 +1,108 @@
-import { NextResponse } from "next/server";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import {
-  isExpoPushToken,
-  sendExpoPushNotifications,
-  type ExpoPushResult,
-} from "@/lib/expo-push";
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { requireAdmin } from "@/lib/auth";
+import { sendExpoMessages } from "@/lib/expo";
+
+type TicketRecord = {
+  token: string;
+  ticketId: string;
+  status: string;
+  error: string | null;
+  createdAt: Date;
+};
+
+type ReceiptRecord = TicketRecord;
+
+const ERROR_CODES_TO_PRUNE = new Set(["DeviceNotRegistered", "InvalidCredentials"]);
+
+async function deleteToken(token: string): Promise<void> {
+  if (!token) return;
+  try {
+    await adminDb.collection("pushTokens").doc(token).delete();
+  } catch (error) {
+    console.warn("Failed to delete invalid token", token, error);
+  }
+}
+
+async function recordTicket(record: TicketRecord): Promise<void> {
+  const ticketRef = adminDb.collection("pushTickets").doc(record.ticketId);
+  await ticketRef.set(record, { merge: true });
+}
+
+async function recordReceipt(record: ReceiptRecord): Promise<void> {
+  const receiptRef = adminDb.collection("pushReceipts").doc(record.ticketId);
+  await receiptRef.set(record, { merge: true });
+}
 
 export const runtime = "nodejs";
 
-type SendPayload = {
-  title?: string;
-  body?: string;
-  data?: Record<string, unknown>;
-  tokens?: string[];
-  segment?: {
-    env?: "prod" | "staging" | "dev";
-    storeId?: string;
-  };
-};
+const payloadSchema = z.object({
+  to: z.string().min(1, "Token is required"),
+  title: z.string().min(1),
+  body: z.string().min(1),
+  data: z.record(z.unknown()).optional(),
+});
 
-function getAdminKey(request: Request): string | null {
-  const headerKey = request.headers.get("x-admin-key");
-  if (headerKey && headerKey.trim()) {
-    return headerKey.trim();
-  }
-  if (process.env.VITE_ADMIN_API_KEY) {
-    return process.env.VITE_ADMIN_API_KEY;
-  }
-  if (process.env.NEXT_PUBLIC_VITE_ADMIN_API_KEY) {
-    return process.env.NEXT_PUBLIC_VITE_ADMIN_API_KEY;
-  }
-  return null;
-}
-
-function validateAdminKey(request: Request): Response | null {
-  const expectedKey = getAdminKey(request);
-  const suppliedKey = request.headers.get("x-admin-key");
-
-  if (!expectedKey) {
-    console.warn("VITE_ADMIN_API_KEY is not configured for push send endpoint.");
-    return NextResponse.json(
-      { error: "Server misconfiguration: admin key missing." },
-      { status: 500 },
-    );
-  }
-
-  if (!suppliedKey || suppliedKey.trim() !== expectedKey) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  return null;
-}
-
-export async function POST(request: Request) {
-  if (!db) {
-    return NextResponse.json(
-      { error: "Firestore is not configured." },
-      { status: 500 },
-    );
-  }
-
-  const unauthorized = validateAdminKey(request);
+export async function POST(request: NextRequest) {
+  const unauthorized = requireAdmin(request);
   if (unauthorized) {
     return unauthorized;
   }
 
-  let payload: SendPayload;
   try {
-    payload = (await request.json()) as SendPayload;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON payload." }, { status: 400 });
-  }
+    const json = await request.json();
+    const payload = payloadSchema.parse(json);
 
-  const title = payload.title?.trim();
-  const body = payload.body?.trim();
-  if (!title || !body) {
-    return NextResponse.json(
-      { error: "Both title and body are required." },
-      { status: 400 },
+    const tickets = await sendExpoMessages([payload.to], {
+      title: payload.title,
+      body: payload.body,
+      data: payload.data,
+    });
+
+    const now = new Date();
+
+    const processedTickets = await Promise.all(
+      tickets.map(async (ticket) => {
+        const ticketId = ticket.id ?? `${payload.to}-${Date.now()}`;
+        const errorCode = (ticket.details?.error ?? ticket.message ?? null) as
+          | string
+          | null;
+
+        const ticketRecord: TicketRecord = {
+          token: payload.to,
+          ticketId,
+          status: ticket.status,
+          error: errorCode,
+          createdAt: now,
+        };
+
+        await recordTicket(ticketRecord);
+
+        if (ticket.status !== "ok") {
+          await recordReceipt(ticketRecord);
+          if (errorCode && ERROR_CODES_TO_PRUNE.has(errorCode)) {
+            await deleteToken(payload.to);
+          }
+        }
+
+        return ticketRecord;
+      }),
     );
-  }
 
-  const data = payload.data && typeof payload.data === "object" ? payload.data : {};
-
-  let tokens: string[] = Array.isArray(payload.tokens)
-    ? payload.tokens.filter((token) => isExpoPushToken(token))
-    : [];
-
-  if (tokens.length === 0) {
-    const env = payload.segment?.env ?? "prod";
-    const storeId = payload.segment?.storeId?.trim();
-
-    const conditions = [where("env", "==", env)];
-    if (storeId) {
-      conditions.push(where("storeId", "==", storeId));
+    return NextResponse.json({ ok: true, tickets: processedTickets });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { ok: false, error: error.flatten() },
+        { status: 400 },
+      );
     }
 
-    const tokensCollection = collection(db, "pushTokens");
-    const tokenQuery = query(tokensCollection, ...conditions);
-    const snapshot = await getDocs(tokenQuery);
-    tokens = snapshot.docs
-      .map((docSnapshot) => docSnapshot.get("token") as string | undefined)
-      .filter(isExpoPushToken);
-  }
-
-  if (tokens.length === 0) {
+    console.error("Failed to send push notification", error);
     return NextResponse.json(
-      { error: "No tokens available for this segment." },
-      { status: 404 },
+      { ok: false, error: "Failed to send push notification" },
+      { status: 500 },
     );
   }
-
-  let results: ExpoPushResult[] = [];
-  try {
-    results = await sendExpoPushNotifications(tokens, { title, body, data });
-  } catch (error) {
-    console.error("Failed to call Expo Push API", error);
-    return NextResponse.json(
-      { error: "Failed to deliver push notifications." },
-      { status: 502 },
-    );
-  }
-
-  const okCount = results.filter((result) => result.ok).length;
-
-  return NextResponse.json({
-    ok: true,
-    totalTokens: tokens.length,
-    batches: results.length,
-    delivered: okCount,
-    results,
-  });
 }
-

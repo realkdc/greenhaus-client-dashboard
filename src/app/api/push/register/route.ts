@@ -1,115 +1,70 @@
-import { NextResponse } from "next/server";
-import {
-  collection,
-  doc,
-  getDoc,
-  serverTimestamp,
-  setDoc,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { isExpoPushToken } from "@/lib/expo-push";
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { requireAdmin } from "@/lib/auth";
+
+type TokenDocument = {
+  token: string;
+  userId: string | null;
+  deviceOS: "ios" | "android" | null;
+  optedIn: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 export const runtime = "nodejs";
 
-type RegisterPayload = {
-  token?: string;
-  env?: string;
-  storeId?: string | null;
-  deviceId?: string | null;
-  platform?: string | null;
-  appVersion?: string | null;
-};
+const payloadSchema = z.object({
+  token: z.string().min(1, "Expo token is required"),
+  userId: z.string().min(1).optional(),
+  deviceOS: z.enum(["ios", "android"]).optional(),
+  optedIn: z.boolean().optional(),
+});
 
-const ALLOWED_ENVS = new Set(["prod", "production", "staging", "stage", "dev", "development"]);
+export async function POST(request: NextRequest) {
+  const unauthorized = requireAdmin(request);
+  if (unauthorized) {
+    return unauthorized;
+  }
 
-function normalizeEnv(env: string | undefined): "prod" | "staging" | "dev" {
-  const value = (env ?? "prod").toLowerCase();
-  if (value.startsWith("prod")) return "prod";
-  if (value.startsWith("stag")) return "staging";
-  return "dev";
-}
+  try {
+    const json = await request.json();
+    const payload = payloadSchema.parse(json);
 
-export async function POST(request: Request) {
-  if (!db) {
+    const tokenDoc = adminDb.collection("pushTokens").doc(payload.token);
+    const now = new Date();
+
+    const snapshot = await tokenDoc.get();
+    const existingData = snapshot.exists
+      ? (snapshot.data() as Partial<TokenDocument>)
+      : null;
+
+    const createdAt = existingData?.createdAt ?? now;
+
+    const nextData: TokenDocument = {
+      token: payload.token,
+      userId: payload.userId ?? null,
+      deviceOS: payload.deviceOS ?? null,
+      optedIn: payload.optedIn ?? true,
+      createdAt,
+      updatedAt: now,
+    };
+
+    await tokenDoc.set(nextData, { merge: true });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { ok: false, error: error.flatten() },
+        { status: 400 },
+      );
+    }
+
+    console.error("Failed to register push token", error);
     return NextResponse.json(
-      { error: "Firestore is not configured." },
+      { ok: false, error: "Unable to register token" },
       { status: 500 },
     );
   }
-
-  let payload: RegisterPayload;
-  try {
-    payload = (await request.json()) as RegisterPayload;
-  } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON payload." },
-      { status: 400 },
-    );
-  }
-
-  const rawToken = payload.token?.trim();
-  if (!isExpoPushToken(rawToken)) {
-    return NextResponse.json(
-      { error: "A valid Expo push token is required." },
-      { status: 400 },
-    );
-  }
-
-  const env = normalizeEnv(payload.env);
-
-  if (payload.env && !ALLOWED_ENVS.has(payload.env.toLowerCase())) {
-    return NextResponse.json(
-      { error: "Environment must be prod, staging, or dev." },
-      { status: 400 },
-    );
-  }
-
-  const storeId = typeof payload.storeId === "string" && payload.storeId.trim().length > 0
-    ? payload.storeId.trim()
-    : null;
-  const deviceId = typeof payload.deviceId === "string" && payload.deviceId.trim().length > 0
-    ? payload.deviceId.trim()
-    : null;
-  const platform = typeof payload.platform === "string" && payload.platform.trim().length > 0
-    ? payload.platform.trim().toLowerCase()
-    : null;
-  const appVersion = typeof payload.appVersion === "string" && payload.appVersion.trim().length > 0
-    ? payload.appVersion.trim()
-    : null;
-
-  const tokensCollection = collection(db, "pushTokens");
-  const tokenRef = doc(tokensCollection, rawToken);
-
-  let existingCreatedAt = serverTimestamp();
-  try {
-    const currentDoc = await getDoc(tokenRef);
-    if (currentDoc.exists()) {
-      const snapshotData = currentDoc.data();
-      if (snapshotData?.createdAt) {
-        existingCreatedAt = snapshotData.createdAt;
-      }
-    }
-  } catch (error) {
-    console.error("Failed to read existing push token", error);
-  }
-
-  const now = serverTimestamp();
-
-  await setDoc(
-    tokenRef,
-    {
-      token: rawToken,
-      env,
-      storeId: storeId ?? null,
-      deviceId: deviceId ?? null,
-      platform,
-      appVersion,
-      createdAt: existingCreatedAt,
-      updatedAt: now,
-    },
-    { merge: true },
-  );
-
-  return NextResponse.json({ ok: true, token: rawToken, env, storeId });
 }
-

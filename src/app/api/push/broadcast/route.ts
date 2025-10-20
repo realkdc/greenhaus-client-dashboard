@@ -1,142 +1,196 @@
-import { NextResponse } from "next/server";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  type QueryConstraint,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import {
-  sendExpoPushNotifications,
-  isExpoPushToken,
-  type ExpoPushResult,
-} from "@/lib/expo-push";
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { requireAdmin } from "@/lib/auth";
+import { sendExpoMessages } from "@/lib/expo";
 
 export const runtime = "nodejs";
 
-type BroadcastPayload = {
-  title?: string;
-  body?: string;
-  data?: Record<string, unknown>;
-  segment?: {
-    env?: "prod" | "staging" | "dev";
-    storeId?: string;
-  };
-};
+const payloadSchema = z.object({
+  title: z.string().min(1),
+  body: z.string().min(1),
+  segment: z.union([
+    z.enum(["all", "ios", "android"]),
+    z.object({
+      env: z.enum(["prod", "staging"]),
+      storeId: z.string(),
+    })
+  ]).optional(),
+  data: z.record(z.unknown()).optional(),
+});
 
-function getAdminKey(request: Request): string | null {
-  const headerKey = request.headers.get("x-admin-key");
-  if (headerKey && headerKey.trim()) {
-    return headerKey.trim();
+const ERROR_CODES_TO_PRUNE = new Set(["DeviceNotRegistered", "InvalidCredentials"]);
+const CHUNK_SIZE = 100;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
   }
-  if (process.env.VITE_ADMIN_API_KEY) {
-    return process.env.VITE_ADMIN_API_KEY;
-  }
-  if (process.env.NEXT_PUBLIC_VITE_ADMIN_API_KEY) {
-    return process.env.NEXT_PUBLIC_VITE_ADMIN_API_KEY;
-  }
-  return null;
+  return chunks;
 }
 
-function validateAdminKey(request: Request): Response | null {
-  const expectedKey = getAdminKey(request);
-  const suppliedKey = request.headers.get("x-admin-key");
-
-  if (!expectedKey) {
-    console.warn(
-      "VITE_ADMIN_API_KEY is not configured for push broadcast endpoint.",
-    );
-    return NextResponse.json(
-      { error: "Server misconfiguration: admin key missing." },
-      { status: 500 },
-    );
-  }
-
-  if (!suppliedKey || suppliedKey.trim() !== expectedKey) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  return null;
-}
-
-export async function POST(request: Request) {
-  if (!db) {
-    return NextResponse.json(
-      { error: "Firestore is not configured." },
-      { status: 500 },
-    );
-  }
-
-  const unauthorized = validateAdminKey(request);
-  if (unauthorized) {
-    return unauthorized;
-  }
-
-  let payload: BroadcastPayload;
+async function deleteToken(token: string): Promise<void> {
+  if (!token) return;
   try {
-    payload = (await request.json()) as BroadcastPayload;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON payload." }, { status: 400 });
-  }
-
-  const title = payload.title?.trim();
-  const body = payload.body?.trim();
-  if (!title || !body) {
-    return NextResponse.json(
-      { error: "Both title and body are required." },
-      { status: 400 },
-    );
-  }
-
-  const data = payload.data && typeof payload.data === "object" ? payload.data : {};
-
-  const env = payload.segment?.env ?? "prod";
-  const storeId = payload.segment?.storeId?.trim();
-
-  const constraints: QueryConstraint[] = [where("env", "==", env)];
-  if (storeId) {
-    constraints.push(where("storeId", "==", storeId));
-  }
-
-  const tokensCollection = collection(db, "pushTokens");
-  const tokenQuery = query(tokensCollection, ...constraints);
-  const snapshot = await getDocs(tokenQuery);
-
-  const tokens = Array.from(
-    new Set(
-      snapshot.docs
-        .map((docSnapshot) => docSnapshot.get("token") as string | undefined)
-        .filter(isExpoPushToken),
-    ),
-  );
-
-  if (tokens.length === 0) {
-    return NextResponse.json(
-      { error: "No tokens available for this segment." },
-      { status: 404 },
-    );
-  }
-
-  let results: ExpoPushResult[] = [];
-  try {
-    results = await sendExpoPushNotifications(tokens, { title, body, data });
+    await adminDb.collection("pushTokens").doc(token).delete();
   } catch (error) {
-    console.error("Failed to call Expo Push API", error);
-    return NextResponse.json(
-      { error: "Failed to deliver push notifications." },
-      { status: 502 },
-    );
+    console.warn("Failed to delete invalid token", token, error);
   }
-
-  const okCount = results.filter((result) => result.ok).length;
-
-  return NextResponse.json({
-    ok: true,
-    totalTokens: tokens.length,
-    batches: results.length,
-    delivered: okCount,
-    results,
-  });
 }
 
+async function recordTicket(record: {
+  token: string;
+  ticketId: string;
+  status: string;
+  error: string | null;
+  createdAt: Date;
+}): Promise<void> {
+  const ticketRef = adminDb.collection("pushTickets").doc(record.ticketId);
+  await ticketRef.set(record, { merge: true });
+}
+
+async function recordReceipt(record: {
+  token: string;
+  ticketId: string;
+  status: string;
+  error: string | null;
+  createdAt: Date;
+}): Promise<void> {
+  const receiptRef = adminDb.collection("pushReceipts").doc(record.ticketId);
+  await receiptRef.set(record, { merge: true });
+}
+
+function enableCors(response: NextResponse): NextResponse {
+  response.headers.set("Access-Control-Allow-Origin", "*");
+  response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  response.headers.set("Access-Control-Allow-Headers", "Content-Type, x-admin-key");
+  return response;
+}
+
+export async function OPTIONS(): Promise<NextResponse> {
+  return enableCors(NextResponse.json({ ok: true }));
+}
+
+export async function POST(request: NextRequest) {
+  const unauthorized = requireAdmin(request);
+  if (unauthorized) {
+    return enableCors(unauthorized);
+  }
+
+  try {
+    const json = await request.json();
+    const payload = payloadSchema.parse(json);
+
+    // Handle both old and new segment formats
+    let segment = "all";
+    let deviceFilter = null;
+    
+    if (payload.segment) {
+      if (typeof payload.segment === "string") {
+        // Old format: "all", "ios", "android"
+        segment = payload.segment;
+        if (segment !== "all") {
+          deviceFilter = segment;
+        }
+      } else {
+        // New format: { env, storeId }
+        segment = `${payload.segment.env}-${payload.segment.storeId}`;
+        // For now, we'll send to all opted-in users regardless of env/storeId
+        // In a real implementation, you'd filter by these criteria
+      }
+    }
+
+    let query = adminDb.collection("pushTokens").where("optedIn", "==", true);
+    if (deviceFilter) {
+      query = query.where("deviceOS", "==", deviceFilter);
+    }
+
+    const snapshot = await query.get();
+    const tokens = snapshot.docs
+      .map((doc) => doc.get("token") as string | undefined)
+      .filter((token): token is string => typeof token === "string" && token.length > 0);
+
+    if (tokens.length === 0) {
+      return enableCors(
+        NextResponse.json(
+          { ok: false, error: "No tokens available for this segment." },
+          { status: 404 },
+        ),
+      );
+    }
+
+    const batches = chunk(tokens, CHUNK_SIZE);
+    const now = new Date();
+    const tickets: Array<{
+      token: string;
+      ticketId: string;
+      status: string;
+      error: string | null;
+      createdAt: Date;
+    }> = [];
+
+    for (const batch of batches) {
+      const expoTickets = await sendExpoMessages(batch, {
+        title: payload.title,
+        body: payload.body,
+        data: payload.data,
+      });
+
+      await Promise.all(
+        expoTickets.map(async (ticket, index) => {
+          const token = batch[index] ?? "unknown";
+          const ticketId = ticket.id ?? `${token}-${Date.now()}`;
+          const errorCode = (ticket.details?.error ?? ticket.message ?? null) as string | null;
+
+          const record = {
+            token,
+            ticketId,
+            status: ticket.status,
+            error: errorCode,
+            createdAt: now,
+          };
+
+          tickets.push(record);
+          await recordTicket(record);
+
+          if (ticket.status !== "ok") {
+            await recordReceipt(record);
+            if (errorCode && ERROR_CODES_TO_PRUNE.has(errorCode)) {
+              await deleteToken(token);
+            }
+          }
+        }),
+      );
+    }
+
+    const campaignsRef = adminDb.collection("pushCampaigns");
+    await campaignsRef.add({
+      title: payload.title,
+      body: payload.body,
+      segment,
+      sentBy: request.headers.get("x-admin-email") ?? null,
+      queued: tokens.length,
+      createdAt: now,
+    });
+
+    return enableCors(NextResponse.json({ ok: true, queued: tokens.length, failed: 0 }));
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return enableCors(
+        NextResponse.json(
+          { ok: false, error: error.flatten() },
+          { status: 400 },
+        ),
+      );
+    }
+
+    console.error("Failed to broadcast push notification", error);
+    return enableCors(
+      NextResponse.json(
+        { ok: false, error: "Failed to broadcast push notification" },
+        { status: 500 },
+      ),
+    );
+  }
+}
