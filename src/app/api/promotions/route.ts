@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     const promos = [];
     
     for (const doc of snapshot.docs) {
-      const data = { id: doc.id, ...doc.data() };
+      const data: any = { id: doc.id, ...doc.data() };
       
       // Check date window constraints
       const startsAt = data.startsAt;
