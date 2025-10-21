@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { ensurePromo } from "@/lib/promotions/ensurePromo";
+import {
+  coerceCanonicalStoreId,
+  resolveStoreAliases,
+} from "@/lib/promotions/storeIds";
 import { Timestamp } from "firebase-admin/firestore";
 
 export async function GET(request: NextRequest) {
@@ -28,6 +32,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const { canonical: canonicalStoreId, aliases } =
+      resolveStoreAliases(storeId) ?? {
+        canonical: coerceCanonicalStoreId(storeId),
+        aliases: [storeId],
+      };
+
+    const storeIdsToQuery = Array.from(
+      new Set([canonicalStoreId, ...aliases]),
+    );
+
+    console.log("[promotions API] Query params:", {
+      requestedStoreId: storeId,
+      canonicalStoreId,
+      aliases,
+      storeIdsToQuery,
+      env,
+    });
+
     // Validate environment parameter
     if (env !== "prod" && env !== "staging") {
       return NextResponse.json(
@@ -37,10 +59,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Build Firestore query with required env and storeId
-    let query = adminDb.collection("promotions")
+    let query = adminDb
+      .collection("promotions")
       .where("enabled", "==", true)
       .where("env", "==", env)
-      .where("storeId", "==", storeId);
+      .where("storeId", "in", storeIdsToQuery);
 
     // Execute query
     const snapshot = await query.get();
