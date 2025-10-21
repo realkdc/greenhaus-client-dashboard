@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { STORES, type StoreId } from "@/lib/stores";
 
 interface Campaign {
   title: string;
@@ -23,7 +24,7 @@ export default function BroadcastPage() {
     title: "",
     body: "",
     env: "prod",
-    storeId: "store_123",
+    storeId: STORES[0].id as StoreId,
   });
   const [testToken, setTestToken] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -242,19 +243,28 @@ export default function BroadcastPage() {
 
               <div>
                 <label htmlFor="storeId" className="block text-sm font-medium text-slate-700">
-                  Store ID
+                  Store
                 </label>
-                <input
-                  type="text"
+                <select
                   id="storeId"
                   name="storeId"
                   value={formData.storeId}
                   onChange={handleInputChange}
                   className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                  placeholder="store_123"
                   disabled={isLoading}
-                />
+                >
+                  {STORES.map((store) => (
+                    <option key={store.id} value={store.id}>
+                      {store.label}
+                    </option>
+                  ))}
+                </select>
               </div>
+            </div>
+
+            {/* Status line */}
+            <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-600">
+              Targeting env=prod, store={STORES.find(s => s.id === formData.storeId)?.label || formData.storeId}
             </div>
 
             <button

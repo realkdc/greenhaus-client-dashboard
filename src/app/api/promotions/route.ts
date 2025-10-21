@@ -7,11 +7,26 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     
-    // Parse query parameters with defaults
-    const env = searchParams.get("env") || "prod";
+    // Parse query parameters - env and storeId are now required
+    const env = searchParams.get("env");
     const storeId = searchParams.get("storeId");
     const limitParam = searchParams.get("limit");
     const limit = Math.min(Math.max(parseInt(limitParam || "5", 10), 1), 10);
+
+    // Validate required parameters
+    if (!env) {
+      return NextResponse.json(
+        { error: "env parameter is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!storeId) {
+      return NextResponse.json(
+        { error: "storeId parameter is required" },
+        { status: 400 }
+      );
+    }
 
     // Validate environment parameter
     if (env !== "prod" && env !== "staging") {
@@ -21,15 +36,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build Firestore query - if no storeId specified, get from both stores
+    // Build Firestore query with required env and storeId
     let query = adminDb.collection("promotions")
       .where("enabled", "==", true)
-      .where("env", "==", env);
-    
-    // If storeId is specified, filter by it. Otherwise, get from both stores
-    if (storeId) {
-      query = query.where("storeId", "==", storeId);
-    }
+      .where("env", "==", env)
+      .where("storeId", "==", storeId);
 
     // Execute query
     const snapshot = await query.get();

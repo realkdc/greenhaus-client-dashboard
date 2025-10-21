@@ -107,6 +107,55 @@ Expected output:
 
 Requires `NEXT_PUBLIC_VITE_ADMIN_API_KEY` to be set in `.env.local`.
 
+### Store Segmentation (Phase 2)
+
+The system now uses canonical store IDs for precise targeting in both Broadcast and Promotions:
+
+#### Canonical Store IDs
+- `greenhaus-tn-crossville` (label: "Crossville, TN")
+- `greenhaus-tn-cookeville` (label: "Cookeville, TN")
+
+#### Environment
+- All targeting is fixed to `env="prod"`
+
+#### Broadcast UI (/broadcast)
+- Store ID is now a Select dropdown with the two canonical options
+- Environment is fixed to "prod"
+- Status line shows: "Targeting env=prod, store=<selected>"
+
+#### Promotions
+- Promo create/edit form uses the same store Select dropdown
+- Environment is fixed to "prod"
+- GET /api/promotions now requires both `env` and `storeId` parameters (no defaults)
+
+#### Migration Endpoint
+To migrate existing data from the legacy `store_123` format:
+
+```bash
+POST /api/maintenance/migrate-store-segmentation
+Headers: x-admin-key: <your-admin-key>
+```
+
+This endpoint will:
+- Update pushTokens with `env=="prod"` AND `storeId=="store_123"` to `storeId="greenhaus-tn-crossville"`
+- Update promotions with `env=="prod"` AND `storeId=="store_123"` to `storeId="greenhaus-tn-crossville"`
+
+Returns: `{updatedTokens, updatedPromotions}`
+
+**Note**: The app will re-assign tokens to the user's chosen store on next launch. This endpoint is just to avoid "No tokens for this segment" while users roll forward.
+
+#### Example Broadcast Payload
+```json
+{
+  "title": "Store Update",
+  "body": "New products available!",
+  "segment": {
+    "env": "prod",
+    "storeId": "greenhaus-tn-crossville"
+  }
+}
+```
+
 ### Push API
 
 - `POST /api/push/register`: Save Expo push tokens. Expected payload: `{ token, env?, storeId?, deviceId?, platform?, appVersion? }`.

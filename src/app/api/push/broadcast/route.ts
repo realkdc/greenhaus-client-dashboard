@@ -85,6 +85,8 @@ export async function POST(request: NextRequest) {
     // Handle both old and new segment formats
     let segment = "all";
     let deviceFilter = null;
+    let envFilter = null;
+    let storeIdFilter = null;
     
     if (payload.segment) {
       if (typeof payload.segment === "string") {
@@ -96,14 +98,20 @@ export async function POST(request: NextRequest) {
       } else {
         // New format: { env, storeId }
         segment = `${payload.segment.env}-${payload.segment.storeId}`;
-        // For now, we'll send to all opted-in users regardless of env/storeId
-        // In a real implementation, you'd filter by these criteria
+        envFilter = payload.segment.env;
+        storeIdFilter = payload.segment.storeId;
       }
     }
 
     let query = adminDb.collection("pushTokens").where("optedIn", "==", true);
     if (deviceFilter) {
       query = query.where("deviceOS", "==", deviceFilter);
+    }
+    if (envFilter) {
+      query = query.where("env", "==", envFilter);
+    }
+    if (storeIdFilter) {
+      query = query.where("storeId", "==", storeIdFilter);
     }
 
     const snapshot = await query.get();

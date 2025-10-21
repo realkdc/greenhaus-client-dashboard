@@ -73,9 +73,9 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
 
           const title = typeof data.title === "string" ? data.title : "(Untitled)";
           const storeId =
-            data.storeId === "cookeville" || data.storeId === "crossville"
+            data.storeId === "greenhaus-tn-cookeville" || data.storeId === "greenhaus-tn-crossville"
               ? data.storeId
-              : "cookeville";
+              : "greenhaus-tn-cookeville";
           const createdBy =
             typeof data.createdBy === "string" ? data.createdBy : "unknown";
           // Map new schema to old status field
