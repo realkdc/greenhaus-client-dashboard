@@ -21,12 +21,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!storeId) {
-      return NextResponse.json(
-        { error: "storeId parameter is required" },
-        { status: 400 }
-      );
-    }
+    // storeId is now optional for debugging
 
     // Validate environment parameter
     if (env !== "prod" && env !== "staging") {
@@ -39,8 +34,12 @@ export async function GET(request: NextRequest) {
     // Build Firestore query with required env and storeId
     let query = adminDb.collection("promotions")
       .where("enabled", "==", true)
-      .where("env", "==", env)
-      .where("storeId", "==", storeId);
+      .where("env", "==", env);
+    
+    // If storeId is specified, filter by it
+    if (storeId) {
+      query = query.where("storeId", "==", storeId);
+    }
 
     // Execute query
     const snapshot = await query.get();
