@@ -257,7 +257,10 @@ export default function CrewPage(): JSX.Element {
           id: docRef.id,
           name: trimmedName,
           code,
+          codeLower: code.toLowerCase(),
+          storeId: "store_123",
           status: "active",
+          uses: 0,
           createdAt: Timestamp.now(),
         });
         setFormName("");
