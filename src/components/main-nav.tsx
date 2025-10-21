@@ -11,7 +11,6 @@ const links = [
   { name: "Ambassadors", href: "/ambassadors" },
   { name: "Crew", href: "/crew" },
   { name: "Broadcast", href: "/broadcast" },
-  { name: "Push Center", href: "/admin/push" },
   { name: "Settings", href: "/settings" },
 ];
 
