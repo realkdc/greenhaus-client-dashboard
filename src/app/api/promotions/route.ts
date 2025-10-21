@@ -1,0 +1,108 @@
+import { NextRequest, NextResponse } from "next/server";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { ensurePromo } from "@/lib/promotions/ensurePromo";
+import { Timestamp } from "firebase-admin/firestore";
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    
+    // Parse query parameters with defaults
+    const env = searchParams.get("env") || "prod";
+    const storeId = searchParams.get("storeId") || "store_123";
+    const limitParam = searchParams.get("limit");
+    const limit = Math.min(Math.max(parseInt(limitParam || "5", 10), 1), 10);
+
+    // Validate environment parameter
+    if (env !== "prod" && env !== "staging") {
+      return NextResponse.json(
+        { error: "Invalid env parameter. Must be 'prod' or 'staging'" },
+        { status: 400 }
+      );
+    }
+
+    // Build Firestore query
+    let query = adminDb.collection("promotions")
+      .where("enabled", "==", true)
+      .where("env", "==", env)
+      .where("storeId", "==", storeId);
+
+    // Execute query
+    const snapshot = await query.get();
+    
+    if (snapshot.empty) {
+      return NextResponse.json([]);
+    }
+
+    const now = new Date();
+    const nowTimestamp = Timestamp.fromDate(now);
+    
+    // Filter and process results
+    const promos = [];
+    
+    for (const doc of snapshot.docs) {
+      const data = { id: doc.id, ...doc.data() };
+      
+      // Check date window constraints
+      const startsAt = data.startsAt;
+      const endsAt = data.endsAt;
+      
+      // If startsAt exists, it must be <= now
+      if (startsAt && startsAt.toDate() > now) {
+        continue;
+      }
+      
+      // If endsAt exists, it must be > now
+      if (endsAt && endsAt.toDate() <= now) {
+        continue;
+      }
+      
+      try {
+        const leanPromo = ensurePromo(data);
+        promos.push(leanPromo);
+      } catch (error) {
+        console.warn(`Skipping invalid promo ${doc.id}:`, error);
+        continue;
+      }
+    }
+    
+    // Sort by startsAt desc (fallback to createdAt desc)
+    promos.sort((a, b) => {
+      const aTime = a.startsAt ? new Date(a.startsAt).getTime() : 0;
+      const bTime = b.startsAt ? new Date(b.startsAt).getTime() : 0;
+      
+      if (aTime !== bTime) {
+        return bTime - aTime; // desc order
+      }
+      
+      // Fallback to createdAt if startsAt is missing
+      const aCreated = data.createdAt?.toDate().getTime() || 0;
+      const bCreated = data.createdAt?.toDate().getTime() || 0;
+      return bCreated - aCreated;
+    });
+    
+    // Apply limit
+    const limitedPromos = promos.slice(0, limit);
+    
+    return NextResponse.json(limitedPromos);
+    
+  } catch (error) {
+    console.error("Error fetching promotions:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch promotions" },
+      { status: 500 }
+    );
+  }
+}
+
+// Handle CORS preflight requests
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    },
+  });
+}

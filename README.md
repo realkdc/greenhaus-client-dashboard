@@ -36,6 +36,77 @@ A Next.js 14 admin shell for managing GreenHaus mobile experiences. The project 
 
 With Firebase configured, the Promotions dashboard lets admins compose promos, target stores, and schedule windows while streaming recent entries from Firestore.
 
+### Promotions API
+
+The system provides a public API for fetching active promotions:
+
+#### GET /api/promotions
+
+Returns a list of active promotions matching the specified criteria.
+
+**Query Parameters:**
+- `env` (optional): Environment filter - "prod" or "staging" (default: "prod")
+- `storeId` (optional): Store identifier (default: "store_123")
+- `limit` (optional): Maximum number of results (default: 5, max: 10)
+
+**Response Format:**
+```json
+[
+  {
+    "id": "promo_123",
+    "title": "Earth Day Sale",
+    "body": "Get 20% off all eco-friendly products",
+    "imageUrl": "https://example.com/sale.jpg",
+    "ctaUrl": "https://greenhaus.app/sale",
+    "startsAt": "2024-04-22T00:00:00.000Z",
+    "endsAt": "2024-04-23T23:59:59.000Z"
+  }
+]
+```
+
+**Firestore Schema:**
+The `promotions` collection uses the following schema:
+- `title` (string, required): Promotion title
+- `body` (string, optional): Promotion description
+- `imageUrl` (string, optional): Absolute URL to promotion image
+- `ctaUrl` (string, optional): Call-to-action URL
+- `enabled` (boolean, default: false): Whether promotion is active
+- `env` ("prod" | "staging", default: "prod"): Environment
+- `storeId` (string, default: "store_123"): Store identifier
+- `startsAt` (Timestamp, optional): Promotion start time
+- `endsAt` (Timestamp, optional): Promotion end time
+- `createdAt` (Timestamp): Document creation time
+- `updatedAt` (Timestamp): Last update time
+
+**Migration:**
+To migrate existing promotions to the new schema:
+```bash
+# Via API (requires admin key)
+POST /api/promotions/migrate
+Headers: x-admin-key: <your-admin-key>
+
+# Via script
+npx ts-node scripts/migratePromotions.ts
+```
+
+**Promotions Maintenance:**
+Run the maintenance script to migrate promotions and check active promos:
+```bash
+npm run promos:maintain
+```
+
+This script will:
+1. Run the migration endpoint to update all promotions to the new schema
+2. Fetch and display active promotions from production
+3. Show a summary with counts and sample titles
+
+Expected output:
+- Migration results: count of updated/skipped documents
+- Active promotions list: titles, dates, and CTAs
+- Color-coded status messages for easy scanning
+
+Requires `NEXT_PUBLIC_VITE_ADMIN_API_KEY` to be set in `.env.local`.
+
 ### Push API
 
 - `POST /api/push/register`: Save Expo push tokens. Expected payload: `{ token, env?, storeId?, deviceId?, platform?, appVersion? }`.

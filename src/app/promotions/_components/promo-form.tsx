@@ -41,6 +41,7 @@ export default function PromoForm({
   const [scheduledStart, setScheduledStart] = useState(initialStart);
   const [endsAt, setEndsAt] = useState(initialEnd);
   const [deepLinkUrl, setDeepLinkUrl] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -59,6 +60,7 @@ export default function PromoForm({
     setScheduledStart(freshStart);
     setEndsAt(freshEnd);
     setDeepLinkUrl("");
+    setImageUrl("");
     setFormError(null);
   };
 
@@ -141,9 +143,11 @@ export default function PromoForm({
         title: trimmedTitle,
         body: trimmedBody,
         storeId,
-        status: "live",
+        enabled: true, // New schema field
+        env: "prod", // New schema field
         createdBy: userEmail,
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
         startsAt:
           mode === "schedule"
             ? Timestamp.fromDate(startDate)
@@ -152,7 +156,12 @@ export default function PromoForm({
       };
 
       if (cleanedDeepLink) {
-        payload.deepLinkUrl = cleanedDeepLink;
+        payload.ctaUrl = cleanedDeepLink; // Map deepLinkUrl to ctaUrl
+      }
+
+      const cleanedImageUrl = imageUrl.trim();
+      if (cleanedImageUrl) {
+        payload.imageUrl = cleanedImageUrl;
       }
 
       await addDoc(collection(db, "promotions"), payload);
@@ -244,21 +253,40 @@ export default function PromoForm({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label
-            htmlFor="promo-deep-link"
-            className="text-sm font-semibold text-slate-700"
-          >
-            Deep link URL (optional)
-          </label>
-          <input
-            id="promo-deep-link"
-            type="url"
-            value={deepLinkUrl}
-            onChange={(event) => setDeepLinkUrl(event.target.value)}
-            placeholder="https://greenhaus.app/product/..."
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-          />
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label
+              htmlFor="promo-deep-link"
+              className="text-sm font-semibold text-slate-700"
+            >
+              Call-to-action URL (optional)
+            </label>
+            <input
+              id="promo-deep-link"
+              type="url"
+              value={deepLinkUrl}
+              onChange={(event) => setDeepLinkUrl(event.target.value)}
+              placeholder="https://greenhaus.app/product/..."
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label
+              htmlFor="promo-image-url"
+              className="text-sm font-semibold text-slate-700"
+            >
+              Image URL (optional)
+            </label>
+            <input
+              id="promo-image-url"
+              type="url"
+              value={imageUrl}
+              onChange={(event) => setImageUrl(event.target.value)}
+              placeholder="https://example.com/image.jpg"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+          </div>
         </div>
 
         <div className="space-y-2">
