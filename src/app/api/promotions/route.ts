@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     
     // Parse query parameters with defaults
     const env = searchParams.get("env") || "prod";
-    const storeId = searchParams.get("storeId") || "store_123";
+    const storeId = searchParams.get("storeId") || "cookeville";
     const limitParam = searchParams.get("limit");
     const limit = Math.min(Math.max(parseInt(limitParam || "5", 10), 1), 10);
 

@@ -102,7 +102,7 @@ async function fetchPromotions() {
   try {
     const params = new URLSearchParams({
       env: 'prod',
-      storeId: 'store_123',
+      storeId: 'cookeville',
       limit: '10',
     });
     

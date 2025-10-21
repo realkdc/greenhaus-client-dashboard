@@ -74,13 +74,23 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
               : "cookeville";
           const createdBy =
             typeof data.createdBy === "string" ? data.createdBy : "unknown";
-          const status: Promo["status"] =
-            data.status === "draft" ||
-            data.status === "scheduled" ||
-            data.status === "live" ||
-            data.status === "ended"
-              ? data.status
-              : "draft";
+          // Map new schema to old status field
+          let status: Promo["status"] = "draft";
+          if (data.enabled === true) {
+            const now = new Date();
+            const startsAt = data.startsAt?.toDate();
+            const endsAt = data.endsAt?.toDate();
+            
+            if (startsAt && startsAt > now) {
+              status = "scheduled";
+            } else if (endsAt && endsAt <= now) {
+              status = "ended";
+            } else {
+              status = "live";
+            }
+          } else {
+            status = "draft";
+          }
 
           const createdAt =
             data.createdAt instanceof Timestamp ? data.createdAt : null;
