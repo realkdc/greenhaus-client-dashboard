@@ -12,6 +12,7 @@ const links = [
   { name: "Crew", href: "/crew" },
   { name: "Broadcast", href: "/broadcast" },
   { name: "Settings", href: "/settings" },
+  { name: "Staff PIN", href: "/settings/pin" },
 ];
 
 function isActivePath(pathname: string | null, href: string): boolean {

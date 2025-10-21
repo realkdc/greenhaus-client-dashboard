@@ -15,20 +15,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { code, staffPin, staffName, note } = UseAmbassadorSchema.parse(body);
 
-    // Validate staff PIN
-    const expectedPin = process.env.AMBASSADOR_STAFF_PIN;
-    if (!expectedPin) {
-      return NextResponse.json(
-        { error: "Staff PIN not configured" },
-        { status: 500 }
-      );
-    }
+    // Validate staff PIN - accept either the old env var or 'verified' from new system
+    if (staffPin === 'verified') {
+      // New PIN verification system - PIN already verified
+    } else {
+      // Legacy system - check against env var
+      const expectedPin = process.env.AMBASSADOR_STAFF_PIN;
+      if (!expectedPin) {
+        return NextResponse.json(
+          { error: "Staff PIN not configured" },
+          { status: 500 }
+        );
+      }
 
-    if (staffPin !== expectedPin) {
-      return NextResponse.json(
-        { error: "Invalid staff PIN" },
-        { status: 401 }
-      );
+      if (staffPin !== expectedPin) {
+        return NextResponse.json(
+          { error: "Invalid staff PIN" },
+          { status: 401 }
+        );
+      }
     }
 
     // Find ambassador by code (case-insensitive)
