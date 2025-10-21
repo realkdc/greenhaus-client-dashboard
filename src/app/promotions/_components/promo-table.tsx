@@ -8,6 +8,9 @@ import {
   onSnapshot,
   orderBy,
   query,
+  doc,
+  updateDoc,
+  serverTimestamp,
   type FirestoreError,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -45,6 +48,7 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
   const [rows, setRows] = useState<Promo[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [updating, setUpdating] = useState<string | null>(null);
 
   useEffect(() => {
     if (!db) {
@@ -132,6 +136,27 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
     return unsubscribe;
   }, [onError]);
 
+  const togglePromoStatus = async (promoId: string, currentEnabled: boolean) => {
+    if (!db) {
+      onError("Firestore is not configured.");
+      return;
+    }
+
+    setUpdating(promoId);
+    try {
+      const promoRef = doc(db, "promotions", promoId);
+      await updateDoc(promoRef, {
+        enabled: !currentEnabled,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error("Failed to update promo status:", error);
+      onError("Failed to update promotion status.");
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   return (
     <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-accent/5 sm:p-8">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
@@ -152,12 +177,13 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Window</th>
               <th className="px-4 py-3 font-medium">Created By</th>
+              <th className="px-4 py-3 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
             {loading && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-sm">
+                <td colSpan={6} className="px-4 py-6 text-center text-sm">
                   Loading promos…
                 </td>
               </tr>
@@ -165,7 +191,7 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
 
             {!loading && fetchError && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-sm text-red-600">
+                <td colSpan={6} className="px-4 py-6 text-center text-sm text-red-600">
                   {fetchError}
                 </td>
               </tr>
@@ -173,7 +199,7 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
 
             {!loading && !fetchError && rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-sm">
+                <td colSpan={6} className="px-4 py-6 text-center text-sm">
                   No promotions yet. Create one above to get started.
                 </td>
               </tr>
@@ -182,6 +208,8 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
             {rows.map((promo) => {
               const storeLabel = STORE_LABEL_LOOKUP[promo.storeId] ?? promo.storeId;
               const windowLabel = windowFormatter(promo.startsAt, promo.endsAt);
+              const isUpdating = updating === promo.id;
+              const isEnabled = promo.status === "live" || promo.status === "scheduled";
 
               return (
                 <tr key={promo.id}>
@@ -197,6 +225,43 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-500">
                     {promo.createdBy}
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => togglePromoStatus(promo.id, isEnabled)}
+                      disabled={isUpdating}
+                      className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                        isEnabled
+                          ? "bg-red-100 text-red-700 hover:bg-red-200"
+                          : "bg-green-100 text-green-700 hover:bg-green-200"
+                      } ${isUpdating ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      {isUpdating ? (
+                        <span className="flex items-center gap-1">
+                          <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24">
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                              fill="none"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            />
+                          </svg>
+                          Updating...
+                        </span>
+                      ) : isEnabled ? (
+                        "Disable"
+                      ) : (
+                        "Enable"
+                      )}
+                    </button>
                   </td>
                 </tr>
               );
