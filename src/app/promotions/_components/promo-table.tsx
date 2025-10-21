@@ -10,11 +10,16 @@ import {
   query,
   doc,
   updateDoc,
+  deleteDoc,
   serverTimestamp,
   type FirestoreError,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { STORES } from "@/lib/stores";
+import {
+  coerceCanonicalStoreId,
+  resolveStoreAliases,
+} from "@/lib/promotions/storeIds";
 import type { Promo } from "../../../../types/promo";
 
 type PromoTableProps = {
@@ -72,10 +77,10 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
           const data = docSnap.data();
 
           const title = typeof data.title === "string" ? data.title : "(Untitled)";
-          const storeId =
-            data.storeId === "greenhaus-tn-cookeville" || data.storeId === "greenhaus-tn-crossville"
-              ? data.storeId
-              : "greenhaus-tn-cookeville";
+          const { canonical: storeId } =
+            resolveStoreAliases(data.storeId) ?? {
+              canonical: coerceCanonicalStoreId(data.storeId),
+            };
           const createdBy =
             typeof data.createdBy === "string" ? data.createdBy : "unknown";
           // Map new schema to old status field
@@ -160,6 +165,31 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
     }
   };
 
+  const deletePromo = async (promoId: string, promoTitle: string) => {
+    if (!db) {
+      onError("Firestore is not configured.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete "${promoTitle}"?\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    setUpdating(promoId);
+    try {
+      const promoRef = doc(db, "promotions", promoId);
+      await deleteDoc(promoRef);
+      console.log(`Successfully deleted promo ${promoId}`);
+    } catch (error) {
+      console.error("Failed to delete promo:", error);
+      onError("Failed to delete promotion.");
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   return (
     <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-accent/5 sm:p-8">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
@@ -230,41 +260,51 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
                     {promo.createdBy}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <button
-                      onClick={() => togglePromoStatus(promo.id, isEnabled)}
-                      disabled={isUpdating}
-                      className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors border ${
-                        isEnabled
-                          ? "bg-red-100 text-red-700 hover:bg-red-200 border-red-200"
-                          : "bg-green-100 text-green-700 hover:bg-green-200 border-green-200"
-                      } ${isUpdating ? "opacity-50 cursor-not-allowed" : ""}`}
-                    >
-                      {isUpdating ? (
-                        <span className="flex items-center gap-1">
-                          <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24">
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                              fill="none"
-                            />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            />
-                          </svg>
-                          Updating...
-                        </span>
-                      ) : isEnabled ? (
-                        "Disable"
-                      ) : (
-                        "Enable"
-                      )}
-                    </button>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => togglePromoStatus(promo.id, isEnabled)}
+                        disabled={isUpdating}
+                        className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors border ${
+                          isEnabled
+                            ? "bg-red-100 text-red-700 hover:bg-red-200 border-red-200"
+                            : "bg-green-100 text-green-700 hover:bg-green-200 border-green-200"
+                        } ${isUpdating ? "opacity-50 cursor-not-allowed" : ""}`}
+                      >
+                        {isUpdating ? (
+                          <span className="flex items-center gap-1">
+                            <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24">
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                                fill="none"
+                              />
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              />
+                            </svg>
+                            Updating...
+                          </span>
+                        ) : isEnabled ? (
+                          "Disable"
+                        ) : (
+                          "Enable"
+                        )}
+                      </button>
+                      <button
+                        onClick={() => deletePromo(promo.id, promo.title)}
+                        disabled={isUpdating}
+                        className="inline-flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors border bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Permanently delete this promotion"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
