@@ -1,24 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { migratePromotions } from "../../../../../scripts/migratePromotions";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { requireAdmin } from "@/lib/auth";
+import { migratePromotionsCollection } from "@/lib/promotions/migratePromotions";
 
 export async function POST(request: NextRequest) {
+  // Check for admin authentication
+  const unauthorized = requireAdmin(request);
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   try {
-    // Check for admin key
-    const adminKey = request.headers.get("x-admin-key");
-    const expectedKey = process.env.NEXT_PUBLIC_VITE_ADMIN_API_KEY;
-    
-    if (!adminKey || !expectedKey || adminKey !== expectedKey) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-    
     console.log("Starting promotions migration via API...");
     
-    const result = await migratePromotions();
+    const result = await migratePromotionsCollection(adminDb);
     
     return NextResponse.json({
+      ok: true,
       updated: result.updated,
       skipped: result.skipped,
       errors: result.errors.length,
@@ -27,7 +25,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Migration API error:", error);
     return NextResponse.json(
-      { error: "Migration failed" },
+      { ok: false, error: "Migration failed" },
       { status: 500 }
     );
   }
