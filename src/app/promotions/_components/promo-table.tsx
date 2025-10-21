@@ -137,6 +137,8 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
   }, [onError]);
 
   const togglePromoStatus = async (promoId: string, currentEnabled: boolean) => {
+    console.log(`Toggling promo ${promoId} from ${currentEnabled ? 'enabled' : 'disabled'} to ${!currentEnabled ? 'enabled' : 'disabled'}`);
+    
     if (!db) {
       onError("Firestore is not configured.");
       return;
@@ -149,6 +151,7 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
         enabled: !currentEnabled,
         updatedAt: serverTimestamp(),
       });
+      console.log(`Successfully updated promo ${promoId}`);
     } catch (error) {
       console.error("Failed to update promo status:", error);
       onError("Failed to update promotion status.");
@@ -169,7 +172,7 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
       </div>
 
       <div className="mt-6 overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-left text-sm text-slate-600">
+        <table className="min-w-full divide-y divide-slate-200 text-left text-sm text-slate-600" style={{ minWidth: '800px' }}>
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-3 font-medium">Title</th>
@@ -177,7 +180,7 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Window</th>
               <th className="px-4 py-3 font-medium">Created By</th>
-              <th className="px-4 py-3 font-medium">Actions</th>
+              <th className="px-4 py-3 font-medium text-center">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
@@ -226,14 +229,14 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
                   <td className="px-4 py-3 text-xs text-slate-500">
                     {promo.createdBy}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 text-center">
                     <button
                       onClick={() => togglePromoStatus(promo.id, isEnabled)}
                       disabled={isUpdating}
-                      className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                      className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors border ${
                         isEnabled
-                          ? "bg-red-100 text-red-700 hover:bg-red-200"
-                          : "bg-green-100 text-green-700 hover:bg-green-200"
+                          ? "bg-red-100 text-red-700 hover:bg-red-200 border-red-200"
+                          : "bg-green-100 text-green-700 hover:bg-green-200 border-green-200"
                       } ${isUpdating ? "opacity-50 cursor-not-allowed" : ""}`}
                     >
                       {isUpdating ? (
