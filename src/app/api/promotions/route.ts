@@ -66,19 +66,11 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // Sort by startsAt desc (fallback to createdAt desc)
+    // Sort by startsAt desc (most recent first)
     promos.sort((a, b) => {
       const aTime = a.startsAt ? new Date(a.startsAt).getTime() : 0;
       const bTime = b.startsAt ? new Date(b.startsAt).getTime() : 0;
-      
-      if (aTime !== bTime) {
-        return bTime - aTime; // desc order
-      }
-      
-      // Fallback to createdAt if startsAt is missing
-      const aCreated = data.createdAt?.toDate().getTime() || 0;
-      const bCreated = data.createdAt?.toDate().getTime() || 0;
-      return bCreated - aCreated;
+      return bTime - aTime; // desc order
     });
     
     // Apply limit
