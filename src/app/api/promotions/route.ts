@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     
     // Parse query parameters with defaults
     const env = searchParams.get("env") || "prod";
-    const storeId = searchParams.get("storeId") || "cookeville";
+    const storeId = searchParams.get("storeId");
     const limitParam = searchParams.get("limit");
     const limit = Math.min(Math.max(parseInt(limitParam || "5", 10), 1), 10);
 
@@ -21,11 +21,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build Firestore query
+    // Build Firestore query - if no storeId specified, get from both stores
     let query = adminDb.collection("promotions")
       .where("enabled", "==", true)
-      .where("env", "==", env)
-      .where("storeId", "==", storeId);
+      .where("env", "==", env);
+    
+    // If storeId is specified, filter by it. Otherwise, get from both stores
+    if (storeId) {
+      query = query.where("storeId", "==", storeId);
+    }
 
     // Execute query
     const snapshot = await query.get();

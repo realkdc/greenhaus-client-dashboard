@@ -46,7 +46,7 @@ Returns a list of active promotions matching the specified criteria.
 
 **Query Parameters:**
 - `env` (optional): Environment filter - "prod" or "staging" (default: "prod")
-- `storeId` (optional): Store identifier (default: "store_123")
+- `storeId` (optional): Store identifier - "cookeville" or "crossville" (if omitted, returns from both stores)
 - `limit` (optional): Maximum number of results (default: 5, max: 10)
 
 **Response Format:**
