@@ -3,27 +3,35 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, orderBy, query, where, doc, getDoc, setDoc, updateDoc, Timestamp, FieldValue } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query, doc, deleteDoc } from 'firebase/firestore';
 import QRCode from 'qrcode';
 import RequireAuth from '@/components/require-auth';
 
 type AmbassadorRecord = {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
+  handle?: string;
   code: string;
-  codeLower: string;
-  storeId: string;
-  createdAt: Timestamp | null;
-  uses: number;
+  qrUrl: string;
+  qrType: "public" | "staff";
+  qrUrlPublic: string;
+  qrUrlStaff?: string;
+  scanCount: number;
+  scanCountPublic?: number;
+  scanCountStaff?: number;
+  createdAt: any;
+  createdBy: string;
 };
 
 type QRModalProps = {
   ambassador: AmbassadorRecord;
   isOpen: boolean;
   onClose: () => void;
+  qrType: "public" | "staff";
 };
 
-function QRModal({ ambassador, isOpen, onClose }: QRModalProps) {
+function QRModal({ ambassador, isOpen, onClose, qrType }: QRModalProps) {
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
@@ -31,14 +39,17 @@ function QRModal({ ambassador, isOpen, onClose }: QRModalProps) {
     if (isOpen && ambassador) {
       generateQR();
     }
-  }, [isOpen, ambassador]);
+  }, [isOpen, ambassador, qrType]);
 
   const generateQR = async () => {
     setLoading(true);
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-      const useUrl = `${baseUrl}/use?code=${encodeURIComponent(ambassador.code)}`;
-      const qrDataUrl = await QRCode.toDataURL(useUrl, {
+      const url = qrType === "staff" ? ambassador.qrUrlStaff : ambassador.qrUrlPublic;
+      if (!url) {
+        throw new Error('QR URL not available');
+      }
+      
+      const qrDataUrl = await QRCode.toDataURL(url, {
         width: 256,
         margin: 2,
         color: {
@@ -57,9 +68,20 @@ function QRModal({ ambassador, isOpen, onClose }: QRModalProps) {
   const downloadQR = () => {
     if (qrDataUrl) {
       const link = document.createElement('a');
-      link.download = `ambassador-${ambassador.code}-qr.png`;
+      link.download = `ambassador-${ambassador.code}-${qrType}-qr.png`;
       link.href = qrDataUrl;
       link.click();
+    }
+  };
+
+  const copyLink = async () => {
+    try {
+      const url = qrType === "staff" ? ambassador.qrUrlStaff : ambassador.qrUrlPublic;
+      if (url) {
+        await navigator.clipboard.writeText(url);
+      }
+    } catch (error) {
+      console.error('Failed to copy link:', error);
     }
   };
 
@@ -69,7 +91,9 @@ function QRModal({ ambassador, isOpen, onClose }: QRModalProps) {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">QR Code</h3>
+          <h3 className="text-lg font-semibold text-gray-900">
+            {qrType === "staff" ? "Staff QR Code" : "Public QR Code"}
+          </h3>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
@@ -92,12 +116,20 @@ function QRModal({ ambassador, isOpen, onClose }: QRModalProps) {
           ) : qrDataUrl ? (
             <div className="space-y-4">
               <img src={qrDataUrl} alt="QR Code" className="mx-auto" />
-              <button
-                onClick={downloadQR}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700"
-              >
-                Download QR
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={downloadQR}
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700"
+                >
+                  Download
+                </button>
+                <button
+                  onClick={copyLink}
+                  className="flex-1 bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700"
+                >
+                  Copy Link
+                </button>
+              </div>
             </div>
           ) : (
             <div className="w-64 h-64 mx-auto flex items-center justify-center text-gray-500">
@@ -110,6 +142,163 @@ function QRModal({ ambassador, isOpen, onClose }: QRModalProps) {
   );
 }
 
+type AddAmbassadorModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: { firstName: string; lastName: string; handle?: string; qrType: "public" | "staff" }) => Promise<void>;
+};
+
+function AddAmbassadorModal({ isOpen, onClose, onSubmit }: AddAmbassadorModalProps) {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [handle, setHandle] = useState('');
+  const [qrType, setQrType] = useState<"public" | "staff">("public");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!firstName.trim() || !lastName.trim()) {
+      setError('First name and last name are required');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      await onSubmit({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        handle: handle.trim() || undefined,
+        qrType,
+      });
+      setFirstName('');
+      setLastName('');
+      setHandle('');
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create ambassador');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Add Ambassador</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+              First Name *
+            </label>
+            <input
+              type="text"
+              id="firstName"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+              Last Name *
+            </label>
+            <input
+              type="text"
+              id="lastName"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="handle" className="block text-sm font-medium text-gray-700 mb-1">
+              Handle (optional)
+            </label>
+            <input
+              type="text"
+              id="handle"
+              value={handle}
+              onChange={(e) => setHandle(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              QR Type
+            </label>
+            <div className="space-y-2">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="qrType"
+                  value="public"
+                  checked={qrType === "public"}
+                  onChange={(e) => setQrType(e.target.value as "public" | "staff")}
+                  className="mr-2"
+                />
+                <span className="text-sm">Public (anyone can scan)</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="qrType"
+                  value="staff"
+                  checked={qrType === "staff"}
+                  onChange={(e) => setQrType(e.target.value as "public" | "staff")}
+                  className="mr-2"
+                />
+                <span className="text-sm">Staff (store Wi-Fi or PIN required)</span>
+              </label>
+            </div>
+          </div>
+
+          {error && (
+            <div className="text-sm text-red-600">{error}</div>
+          )}
+
+          <div className="flex gap-2 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? 'Creating...' : 'Create Ambassador'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function AmbassadorsPage() {
   const { user, loading } = useAuth();
   const [ambassadors, setAmbassadors] = useState<AmbassadorRecord[]>([]);
@@ -117,7 +306,9 @@ export default function AmbassadorsPage() {
   const [ambassadorsError, setAmbassadorsError] = useState<string | null>(null);
   const [selectedAmbassador, setSelectedAmbassador] = useState<AmbassadorRecord | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const [selectedQRType, setSelectedQRType] = useState<"public" | "staff">("public");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (!db) {
@@ -138,12 +329,19 @@ export default function AmbassadorsPage() {
           const data = docSnap.data();
           return {
             id: docSnap.id,
-            name: data.name || 'Untitled',
-            code: data.code || docSnap.id,
-            codeLower: data.codeLower || (data.code || docSnap.id).toLowerCase(),
-            storeId: data.storeId || 'store_123',
+            firstName: data.firstName || '',
+            lastName: data.lastName || '',
+            handle: data.handle || undefined,
+            code: data.code || '',
+            qrUrl: data.qrUrl || '',
+            qrType: data.qrType || "public",
+            qrUrlPublic: data.qrUrlPublic || data.qrUrl || '',
+            qrUrlStaff: data.qrUrlStaff || undefined,
+            scanCount: data.scanCount || 0,
+            scanCountPublic: data.scanCountPublic || 0,
+            scanCountStaff: data.scanCountStaff || 0,
             createdAt: data.createdAt || null,
-            uses: data.uses || 0,
+            createdBy: data.createdBy || '',
           };
         });
         setAmbassadors(next);
@@ -160,44 +358,69 @@ export default function AmbassadorsPage() {
     return () => unsubscribe();
   }, []);
 
-  const handleShowQR = (ambassador: AmbassadorRecord) => {
+  const handleShowQR = (ambassador: AmbassadorRecord, qrType: "public" | "staff") => {
     setSelectedAmbassador(ambassador);
+    setSelectedQRType(qrType);
     setShowQRModal(true);
   };
 
-  const handleExportCSV = async () => {
-    setExporting(true);
-    try {
-      const response = await fetch('/api/ambassadors/export.csv');
-      if (!response.ok) {
-        throw new Error('Failed to export CSV');
-      }
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'ambassadors.csv';
-      link.click();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Export failed:', error);
-      alert('Failed to export CSV. Please try again.');
-    } finally {
-      setExporting(false);
+  const handleAddAmbassador = async (data: { firstName: string; lastName: string; handle?: string; qrType: "public" | "staff" }) => {
+    const response = await fetch('/api/ambassadors', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...data,
+        createdBy: user?.email || 'unknown',
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to create ambassador');
     }
   };
 
-  const formatTimestamp = (ts: Timestamp | null): string => {
+  const handleDeleteAmbassador = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this ambassador?')) {
+      return;
+    }
+
+    if (!db) {
+      alert('Database not available. Please refresh and try again.');
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, 'ambassadors', id));
+    } catch (error) {
+      console.error('Failed to delete ambassador:', error);
+      alert('Failed to delete ambassador. Please try again.');
+    }
+  };
+
+  const handleCopyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy code:', error);
+    }
+  };
+
+  const formatTimestamp = (ts: any): string => {
     if (!ts) return '—';
     try {
+      const date = ts.toDate ? ts.toDate() : new Date(ts);
       return new Intl.DateTimeFormat(undefined, {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
-      }).format(ts.toDate());
+      }).format(date);
     } catch {
       return '—';
     }
@@ -242,39 +465,18 @@ export default function AmbassadorsPage() {
                   Ambassador Tracking
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                  Track ambassador code usage and generate QR codes for easy access.
+                  Track ambassador QR code scans and generate QR codes for easy access.
                 </p>
               </div>
-              <div className="flex gap-2">
-                <a
-                  href="/ambassadors/scan"
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                  </svg>
-                  Scan QR
-                </a>
-                <button
-                  onClick={handleExportCSV}
-                  disabled={exporting}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
-                >
-                  {exporting ? (
-                    <>
-                      <span className="h-2 w-2 animate-ping rounded-full bg-accent" />
-                      Exporting...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Export CSV
-                    </>
-                  )}
-                </button>
-              </div>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-accent/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Ambassador
+              </button>
             </div>
           </header>
 
@@ -312,10 +514,16 @@ export default function AmbassadorsPage() {
                         Code
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        Store
+                        QR Type
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        Uses
+                        QR Codes
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Scans (Public)
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Scans (Staff)
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         Created
@@ -330,29 +538,75 @@ export default function AmbassadorsPage() {
                       <tr key={ambassador.id} className="hover:bg-slate-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-slate-900">
-                            {ambassador.name}
+                            {ambassador.firstName} {ambassador.lastName}
+                            {ambassador.handle && (
+                              <div className="text-xs text-slate-500">@{ambassador.handle}</div>
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
-                            {ambassador.code}
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                              {ambassador.code}
+                            </span>
+                            <button
+                              onClick={() => handleCopyCode(ambassador.code)}
+                              className="text-slate-400 hover:text-slate-600"
+                            >
+                              {copiedCode === ambassador.code ? (
+                                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              ) : (
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            ambassador.qrType === "staff" 
+                              ? "bg-orange-100 text-orange-800" 
+                              : "bg-green-100 text-green-800"
+                          }`}>
+                            {ambassador.qrType === "staff" ? "Staff" : "Public"}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                          {ambassador.storeId}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleShowQR(ambassador, "public")}
+                              className="text-blue-600 hover:text-blue-900 text-sm font-medium"
+                            >
+                              Public QR
+                            </button>
+                            {ambassador.qrType === "staff" && (
+                              <button
+                                onClick={() => handleShowQR(ambassador, "staff")}
+                                className="text-orange-600 hover:text-orange-900 text-sm font-medium"
+                              >
+                                Staff QR
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                          {ambassador.uses}
+                          {ambassador.scanCountPublic || 0}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                          {ambassador.scanCountStaff || 0}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                           {formatTimestamp(ambassador.createdAt)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <button
-                            onClick={() => handleShowQR(ambassador)}
-                            className="text-blue-600 hover:text-blue-900"
+                            onClick={() => handleDeleteAmbassador(ambassador.id)}
+                            className="text-red-600 hover:text-red-900"
                           >
-                            QR
+                            Delete
                           </button>
                         </td>
                       </tr>
@@ -368,6 +622,13 @@ export default function AmbassadorsPage() {
           ambassador={selectedAmbassador!}
           isOpen={showQRModal}
           onClose={() => setShowQRModal(false)}
+          qrType={selectedQRType}
+        />
+
+        <AddAmbassadorModal
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          onSubmit={handleAddAmbassador}
         />
       </section>
     </RequireAuth>
