@@ -141,7 +141,7 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
     return unsubscribe;
   }, [onError]);
 
-  const togglePromoStatus = async (promoId: string, currentEnabled: boolean) => {
+  const togglePromoStatus = async (promoId: string, currentEnabled: boolean, promo?: Promo) => {
     console.log(`Toggling promo ${promoId} from ${currentEnabled ? 'enabled' : 'disabled'} to ${!currentEnabled ? 'enabled' : 'disabled'}`);
     
     if (!db) {
@@ -152,10 +152,25 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
     setUpdating(promoId);
     try {
       const promoRef = doc(db, "promotions", promoId);
-      await updateDoc(promoRef, {
+      const updateData: Record<string, unknown> = {
         enabled: !currentEnabled,
         updatedAt: serverTimestamp(),
-      });
+      };
+
+      // If we're enabling a promotion and it's currently ended (endsAt is in the past),
+      // extend the end date by 7 days from now
+      if (!currentEnabled && promo?.endsAt) {
+        const endsAtDate = promo.endsAt.toDate();
+        const now = new Date();
+        if (endsAtDate <= now) {
+          // Extend end date by 7 days
+          const newEndDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+          updateData.endsAt = Timestamp.fromDate(newEndDate);
+          console.log(`Extending end date for ended promotion to ${newEndDate.toISOString()}`);
+        }
+      }
+
+      await updateDoc(promoRef, updateData);
       console.log(`Successfully updated promo ${promoId}`);
     } catch (error) {
       console.error("Failed to update promo status:", error);
@@ -262,7 +277,7 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button
-                        onClick={() => togglePromoStatus(promo.id, isEnabled)}
+                        onClick={() => togglePromoStatus(promo.id, isEnabled, promo)}
                         disabled={isUpdating}
                         className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors border ${
                           isEnabled
