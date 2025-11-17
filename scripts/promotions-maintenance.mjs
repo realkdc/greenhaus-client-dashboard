@@ -102,7 +102,7 @@ async function fetchPromotions() {
   try {
     const params = new URLSearchParams({
       env: 'prod',
-      // No storeId = get from both stores
+      storeId: 'greenhaus-tn-crossville',
       limit: '10',
     });
     

@@ -1,11 +1,15 @@
 import { adminDb } from './firebaseAdmin';
 import { FieldValue } from 'firebase-admin/firestore';
 
+export type AmbassadorTier = "seed" | "sprout" | "bloom" | "evergreen";
+
 export interface Ambassador {
   id: string;
   firstName: string;
   lastName: string;
+  email?: string;
   handle?: string;
+  tier: AmbassadorTier;
   code: string;
   qrUrl: string;
   qrType: "public" | "staff";
@@ -14,6 +18,8 @@ export interface Ambassador {
   scanCount: number;
   scanCountPublic?: number;
   scanCountStaff?: number;
+  orders?: number;
+  points?: number;
   createdAt: FieldValue;
   createdBy: string;
 }
@@ -21,8 +27,12 @@ export interface Ambassador {
 export interface CreateAmbassadorData {
   firstName: string;
   lastName: string;
+  email?: string;
   handle?: string;
+  tier?: AmbassadorTier;
   qrType?: "public" | "staff";
+  orders?: number;
+  points?: number;
   createdBy: string;
 }
 
@@ -51,33 +61,35 @@ function generateCode(firstName: string, lastName: string): string {
 }
 
 export async function createAmbassador(data: CreateAmbassadorData): Promise<Ambassador> {
-  const { firstName, lastName, handle, qrType = "public", createdBy } = data;
-  
+  const { firstName, lastName, email, handle, tier = "seed", qrType = "public", orders = 0, points = 0, createdBy } = data;
+
   // Generate unique code
   let code: string;
   let attempts = 0;
   const maxAttempts = 10;
-  
+
   do {
     code = generateCode(firstName, lastName);
     const existing = await adminDb.collection('ambassadors').where('code', '==', code).limit(1).get();
     if (existing.empty) break;
     attempts++;
   } while (attempts < maxAttempts);
-  
+
   if (attempts >= maxAttempts) {
     throw new Error('Unable to generate unique code. Please try again.');
   }
-  
+
   // Generate QR URLs
   const siteBase = process.env.NEXT_PUBLIC_SITE_BASE || 'https://greenhaus-site.vercel.app';
   const qrUrlPublic = `${siteBase}/r/${code}`;
   const qrUrlStaff = qrType === "staff" ? `${siteBase}/s/${code}` : undefined;
-  
+
   const ambassadorData: Omit<Ambassador, 'id'> = {
     firstName,
     lastName,
+    email,
     handle,
+    tier,
     code,
     qrUrl: qrUrlPublic, // Keep for backward compatibility
     qrType,
@@ -86,12 +98,14 @@ export async function createAmbassador(data: CreateAmbassadorData): Promise<Amba
     scanCount: 0,
     scanCountPublic: 0,
     scanCountStaff: 0,
+    orders,
+    points,
     createdAt: FieldValue.serverTimestamp(),
     createdBy,
   };
-  
+
   const docRef = await adminDb.collection('ambassadors').add(ambassadorData);
-  
+
   return {
     id: docRef.id,
     ...ambassadorData,
@@ -201,6 +215,10 @@ export async function incrementStaffScanCount(code: string): Promise<number> {
     
     return (ambassador.scanCountStaff || 0) + 1;
   });
+}
+
+export async function updateAmbassador(id: string, data: Partial<Omit<Ambassador, 'id' | 'createdAt' | 'createdBy'>>): Promise<void> {
+  await adminDb.collection('ambassadors').doc(id).update(data);
 }
 
 export async function deleteAmbassador(id: string): Promise<void> {

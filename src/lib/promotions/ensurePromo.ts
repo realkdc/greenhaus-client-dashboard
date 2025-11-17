@@ -1,4 +1,8 @@
 import { Timestamp } from "firebase-admin/firestore";
+import {
+  coerceCanonicalStoreId,
+  DEFAULT_CANONICAL_STORE_ID,
+} from "./storeIds";
 
 export interface PromoDoc {
   id?: string;
@@ -92,6 +96,10 @@ export function ensurePromo(doc: PromoDoc): LeanPromo {
 export function createPromoDoc(data: Partial<PromoDoc>, isUpdate = false): PromoDoc {
   const now = Timestamp.now();
   
+  const canonicalStoreId = coerceCanonicalStoreId(
+    data.storeId ?? DEFAULT_CANONICAL_STORE_ID,
+  );
+
   const doc: PromoDoc = {
     title: data.title?.trim() || "",
     body: data.body?.trim() || undefined,
@@ -99,7 +107,7 @@ export function createPromoDoc(data: Partial<PromoDoc>, isUpdate = false): Promo
     ctaUrl: data.ctaUrl?.trim() || undefined,
     enabled: data.enabled ?? false,
     env: data.env || "prod",
-    storeId: data.storeId || "store_123",
+    storeId: canonicalStoreId,
     startsAt: data.startsAt || null,
     endsAt: data.endsAt || null,
     updatedAt: now,

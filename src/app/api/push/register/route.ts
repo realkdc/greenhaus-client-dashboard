@@ -1,70 +1,98 @@
-import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+// src/app/api/push/register/route.ts
+import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { requireAdmin } from "@/lib/auth";
+import { FieldValue } from "firebase-admin/firestore";
 
-type TokenDocument = {
-  token: string;
-  userId: string | null;
-  deviceOS: "ios" | "android" | null;
-  optedIn: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-};
+// Canonical store IDs
+const STORES = new Set(["greenhaus-tn-crossville", "greenhaus-tn-cookeville"]);
+const ENV = new Set(["prod"]); // we only accept prod from app
 
-export const runtime = "nodejs";
+const EXPO_TOKEN_RE = /^ExponentPushToken\[[A-Za-z0-9-_]+\]$/;
 
-const payloadSchema = z.object({
-  token: z.string().min(1, "Expo token is required"),
-  userId: z.string().min(1).optional(),
-  deviceOS: z.enum(["ios", "android"]).optional(),
-  optedIn: z.boolean().optional(),
-});
+// Simple per-token throttle: block updates < 20s apart
+const THROTTLE_SECONDS = 20;
 
-export async function POST(request: NextRequest) {
-  const unauthorized = requireAdmin(request);
-  if (unauthorized) {
-    return unauthorized;
-  }
-
+export async function POST(req: Request) {
   try {
-    const json = await request.json();
-    const payload = payloadSchema.parse(json);
+    const body = await req.json().catch(() => ({}));
+    const {
+      token,
+      deviceOS,
+      env,
+      storeId,
+      optedIn,
+      appVersion,
+      deviceId,
+    } = body as Record<string, unknown>;
 
-    const tokenDoc = adminDb.collection("pushTokens").doc(payload.token);
-    const now = new Date();
-
-    const snapshot = await tokenDoc.get();
-    const existingData = snapshot.exists
-      ? (snapshot.data() as Partial<TokenDocument>)
-      : null;
-
-    const createdAt = existingData?.createdAt ?? now;
-
-    const nextData: TokenDocument = {
-      token: payload.token,
-      userId: payload.userId ?? null,
-      deviceOS: payload.deviceOS ?? null,
-      optedIn: payload.optedIn ?? true,
-      createdAt,
-      updatedAt: now,
-    };
-
-    await tokenDoc.set(nextData, { merge: true });
-
-    return NextResponse.json({ ok: true });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
+    // Validate required fields
+    if (typeof token !== "string" || !EXPO_TOKEN_RE.test(token)) {
       return NextResponse.json(
-        { ok: false, error: error.flatten() },
-        { status: 400 },
+        { ok: false, error: "Invalid Expo token" },
+        { status: 400 }
+      );
+    }
+    if (deviceOS !== "ios" && deviceOS !== "android") {
+      return NextResponse.json(
+        { ok: false, error: "deviceOS must be 'ios' or 'android'" },
+        { status: 400 }
+      );
+    }
+    if (typeof env !== "string" || !ENV.has(env)) {
+      return NextResponse.json(
+        { ok: false, error: "env must be 'prod'" },
+        { status: 400 }
+      );
+    }
+    if (typeof storeId !== "string" || !STORES.has(storeId)) {
+      return NextResponse.json(
+        { ok: false, error: "Invalid storeId" },
+        { status: 400 }
+      );
+    }
+    if (typeof optedIn !== "boolean") {
+      return NextResponse.json(
+        { ok: false, error: "optedIn must be boolean" },
+        { status: 400 }
       );
     }
 
-    console.error("Failed to register push token", error);
+    const docRef = adminDb.collection("pushTokens").doc(token);
+
+    // Throttle: if last updated < THROTTLE_SECONDS ago, skip heavy work
+    const snap = await docRef.get();
+    const now = Date.now();
+    if (snap.exists) {
+      const prev = snap.get("updatedAt")?.toMillis?.() ?? 0;
+      if (prev && now - prev < THROTTLE_SECONDS * 1000) {
+        return NextResponse.json({ ok: true, throttled: true });
+      }
+    }
+
+    // Upsert token
+    await docRef.set(
+      {
+        token,
+        deviceOS,
+        platform: deviceOS, // legacy field kept for compatibility
+        env,
+        storeId,
+        optedIn,
+        appVersion: typeof appVersion === "string" ? appVersion : null,
+        deviceId: typeof deviceId === "string" ? deviceId : null,
+        enabled: true,
+        createdAt: snap.exists ? FieldValue.delete() : FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    return NextResponse.json({ ok: true, token, env, storeId });
+  } catch (err: any) {
+    console.error("[register] error", err);
     return NextResponse.json(
-      { ok: false, error: "Unable to register token" },
-      { status: 500 },
+      { ok: false, error: "Internal error" },
+      { status: 500 }
     );
   }
 }

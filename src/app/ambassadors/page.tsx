@@ -5,13 +5,18 @@ import { useAuth } from '@/components/auth-provider';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, orderBy, query, doc, deleteDoc } from 'firebase/firestore';
 import QRCode from 'qrcode';
+import Link from 'next/link';
 import RequireAuth from '@/components/require-auth';
+
+type AmbassadorTier = "seed" | "sprout" | "bloom" | "evergreen";
 
 type AmbassadorRecord = {
   id: string;
   firstName: string;
   lastName: string;
+  email?: string;
   handle?: string;
+  tier: AmbassadorTier;
   code: string;
   qrUrl: string;
   qrType: "public" | "staff";
@@ -20,6 +25,8 @@ type AmbassadorRecord = {
   scanCount: number;
   scanCountPublic?: number;
   scanCountStaff?: number;
+  orders?: number;
+  points?: number;
   createdAt: any;
   createdBy: string;
 };
@@ -145,13 +152,22 @@ function QRModal({ ambassador, isOpen, onClose, qrType }: QRModalProps) {
 type AddAmbassadorModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: { firstName: string; lastName: string; handle?: string; qrType: "public" | "staff" }) => Promise<void>;
+  onSubmit: (data: {
+    firstName: string;
+    lastName: string;
+    email?: string;
+    handle?: string;
+    tier: AmbassadorTier;
+    qrType: "public" | "staff"
+  }) => Promise<void>;
 };
 
 function AddAmbassadorModal({ isOpen, onClose, onSubmit }: AddAmbassadorModalProps) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
   const [handle, setHandle] = useState('');
+  const [tier, setTier] = useState<AmbassadorTier>("seed");
   const [qrType, setQrType] = useState<"public" | "staff">("public");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -170,12 +186,16 @@ function AddAmbassadorModal({ isOpen, onClose, onSubmit }: AddAmbassadorModalPro
       await onSubmit({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        email: email.trim() || undefined,
         handle: handle.trim() || undefined,
+        tier,
         qrType,
       });
       setFirstName('');
       setLastName('');
+      setEmail('');
       setHandle('');
+      setTier('seed');
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create ambassador');
@@ -231,8 +251,22 @@ function AddAmbassadorModal({ isOpen, onClose, onSubmit }: AddAmbassadorModalPro
           </div>
 
           <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              Email (optional)
+            </label>
+            <input
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="ambassador@email.com"
+            />
+          </div>
+
+          <div>
             <label htmlFor="handle" className="block text-sm font-medium text-gray-700 mb-1">
-              Handle (optional)
+              Instagram Handle (optional)
             </label>
             <input
               type="text"
@@ -240,7 +274,25 @@ function AddAmbassadorModal({ isOpen, onClose, onSubmit }: AddAmbassadorModalPro
               value={handle}
               onChange={(e) => setHandle(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="@username"
             />
+          </div>
+
+          <div>
+            <label htmlFor="tier" className="block text-sm font-medium text-gray-700 mb-1">
+              Tier *
+            </label>
+            <select
+              id="tier"
+              value={tier}
+              onChange={(e) => setTier(e.target.value as AmbassadorTier)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="seed">🌱 Seed</option>
+              <option value="sprout">🌿 Sprout</option>
+              <option value="bloom">🌸 Bloom</option>
+              <option value="evergreen">🌲 Evergreen</option>
+            </select>
           </div>
 
           <div>
@@ -299,6 +351,117 @@ function AddAmbassadorModal({ isOpen, onClose, onSubmit }: AddAmbassadorModalPro
   );
 }
 
+type EditAmbassadorModalProps = {
+  ambassador: AmbassadorRecord | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (id: string, data: { orders?: number; points?: number }) => Promise<void>;
+};
+
+function EditAmbassadorModal({ ambassador, isOpen, onClose, onSubmit }: EditAmbassadorModalProps) {
+  const [orders, setOrders] = useState(0);
+  const [points, setPoints] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (ambassador) {
+      setOrders(ambassador.orders || 0);
+      setPoints(ambassador.points || 0);
+    }
+  }, [ambassador]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ambassador) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      await onSubmit(ambassador.id, { orders, points });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update ambassador');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen || !ambassador) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">
+            Edit {ambassador.firstName} {ambassador.lastName}
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="edit-orders" className="block text-sm font-medium text-gray-700 mb-1">
+              Orders
+            </label>
+            <input
+              type="number"
+              id="edit-orders"
+              value={orders}
+              onChange={(e) => setOrders(parseInt(e.target.value) || 0)}
+              min="0"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="edit-points" className="block text-sm font-medium text-gray-700 mb-1">
+              Points
+            </label>
+            <input
+              type="number"
+              id="edit-points"
+              value={points}
+              onChange={(e) => setPoints(parseInt(e.target.value) || 0)}
+              min="0"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          {error && (
+            <div className="text-sm text-red-600">{error}</div>
+          )}
+
+          <div className="flex gap-2 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function AmbassadorsPage() {
   const { user, loading } = useAuth();
   const [ambassadors, setAmbassadors] = useState<AmbassadorRecord[]>([]);
@@ -308,6 +471,8 @@ export default function AmbassadorsPage() {
   const [showQRModal, setShowQRModal] = useState(false);
   const [selectedQRType, setSelectedQRType] = useState<"public" | "staff">("public");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingAmbassador, setEditingAmbassador] = useState<AmbassadorRecord | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   useEffect(() => {
@@ -331,7 +496,9 @@ export default function AmbassadorsPage() {
             id: docSnap.id,
             firstName: data.firstName || '',
             lastName: data.lastName || '',
+            email: data.email || undefined,
             handle: data.handle || undefined,
+            tier: data.tier || 'seed',
             code: data.code || '',
             qrUrl: data.qrUrl || '',
             qrType: data.qrType || "public",
@@ -340,6 +507,8 @@ export default function AmbassadorsPage() {
             scanCount: data.scanCount || 0,
             scanCountPublic: data.scanCountPublic || 0,
             scanCountStaff: data.scanCountStaff || 0,
+            orders: data.orders || 0,
+            points: data.points || 0,
             createdAt: data.createdAt || null,
             createdBy: data.createdBy || '',
           };
@@ -364,7 +533,27 @@ export default function AmbassadorsPage() {
     setShowQRModal(true);
   };
 
-  const handleAddAmbassador = async (data: { firstName: string; lastName: string; handle?: string; qrType: "public" | "staff" }) => {
+  const handleEditAmbassador = (ambassador: AmbassadorRecord) => {
+    setEditingAmbassador(ambassador);
+    setShowEditModal(true);
+  };
+
+  const handleUpdateAmbassador = async (id: string, data: { orders?: number; points?: number }) => {
+    const response = await fetch(`/api/ambassadors/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to update ambassador');
+    }
+  };
+
+  const handleAddAmbassador = async (data: { firstName: string; lastName: string; email?: string; handle?: string; tier: AmbassadorTier; qrType: "public" | "staff" }) => {
     const response = await fetch('/api/ambassadors', {
       method: 'POST',
       headers: {
@@ -426,6 +615,16 @@ export default function AmbassadorsPage() {
     }
   };
 
+  const getTierDisplay = (tier: AmbassadorTier): { emoji: string; label: string; color: string } => {
+    const tierConfig = {
+      seed: { emoji: '🌱', label: 'Seed', color: 'bg-green-100 text-green-800' },
+      sprout: { emoji: '🌿', label: 'Sprout', color: 'bg-emerald-100 text-emerald-800' },
+      bloom: { emoji: '🌸', label: 'Bloom', color: 'bg-pink-100 text-pink-800' },
+      evergreen: { emoji: '🌲', label: 'Evergreen', color: 'bg-teal-100 text-teal-800' },
+    };
+    return tierConfig[tier] || tierConfig.seed;
+  };
+
   if (loading) {
     return (
       <section className="flex min-h-[360px] items-center justify-center px-6 py-16">
@@ -468,15 +667,26 @@ export default function AmbassadorsPage() {
                   Track ambassador QR code scans and generate QR codes for easy access.
                 </p>
               </div>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-accent/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Add Ambassador
-              </button>
+              <div className="flex gap-3">
+                <Link
+                  href="/ambassadors/leaderboard"
+                  className="inline-flex items-center gap-2 rounded-full bg-slate-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  Leaderboard
+                </Link>
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-accent/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Ambassador
+                </button>
+              </div>
             </div>
           </header>
 
@@ -511,6 +721,12 @@ export default function AmbassadorsPage() {
                         Name
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Contact
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Tier
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         Code
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
@@ -526,6 +742,12 @@ export default function AmbassadorsPage() {
                         Scans (Staff)
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Orders
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Points
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         Created
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
@@ -534,15 +756,32 @@ export default function AmbassadorsPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-slate-200">
-                    {ambassadors.map((ambassador) => (
+                    {ambassadors.map((ambassador) => {
+                      const tierDisplay = getTierDisplay(ambassador.tier);
+                      return (
                       <tr key={ambassador.id} className="hover:bg-slate-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-slate-900">
                             {ambassador.firstName} {ambassador.lastName}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-slate-900">
+                            {ambassador.email && (
+                              <div className="text-xs text-slate-600">{ambassador.email}</div>
+                            )}
                             {ambassador.handle && (
                               <div className="text-xs text-slate-500">@{ambassador.handle}</div>
                             )}
+                            {!ambassador.email && !ambassador.handle && (
+                              <span className="text-xs text-slate-400">—</span>
+                            )}
                           </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${tierDisplay.color}`}>
+                            {tierDisplay.emoji} {tierDisplay.label}
+                          </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
@@ -599,18 +838,33 @@ export default function AmbassadorsPage() {
                           {ambassador.scanCountStaff || 0}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                          {ambassador.orders || 0}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                          {ambassador.points || 0}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                           {formatTimestamp(ambassador.createdAt)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => handleDeleteAmbassador(ambassador.id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            Delete
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditAmbassador(ambassador)}
+                              className="text-blue-600 hover:text-blue-900"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAmbassador(ambassador.id)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -629,6 +883,13 @@ export default function AmbassadorsPage() {
           isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
           onSubmit={handleAddAmbassador}
+        />
+
+        <EditAmbassadorModal
+          ambassador={editingAmbassador}
+          isOpen={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          onSubmit={handleUpdateAmbassador}
         />
       </section>
     </RequireAuth>

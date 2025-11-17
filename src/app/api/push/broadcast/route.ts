@@ -81,6 +81,10 @@ export async function POST(request: NextRequest) {
   try {
     const json = await request.json();
     const payload = payloadSchema.parse(json);
+    
+    // Check for dryRun parameter
+    const { searchParams } = new URL(request.url);
+    const dryRun = searchParams.get("dryRun") === "true";
 
     // Handle both old and new segment formats
     let segment = "all";
@@ -103,7 +107,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let query = adminDb.collection("pushTokens").where("optedIn", "==", true);
+    let query = adminDb.collection("pushTokens").where("enabled", "==", true)
+      .where("optedIn", "==", true);
     if (deviceFilter) {
       query = query.where("deviceOS", "==", deviceFilter);
     }
@@ -126,6 +131,32 @@ export async function POST(request: NextRequest) {
           { status: 404 },
         ),
       );
+    }
+
+    // If dryRun, return summary without sending
+    if (dryRun) {
+      const iosCount = snapshot.docs.filter(doc => doc.get("deviceOS") === "ios").length;
+      const androidCount = snapshot.docs.filter(doc => doc.get("deviceOS") === "android").length;
+      const sample = tokens.slice(0, 5);
+      
+      return enableCors(NextResponse.json({
+        ok: true,
+        dryRun: true,
+        env: envFilter,
+        storeId: storeIdFilter,
+        counts: {
+          total: tokens.length,
+          ios: iosCount,
+          android: androidCount
+        },
+        sample,
+        queryUsed: { env: envFilter, storeId: storeIdFilter },
+        payload: {
+          title: payload.title,
+          body: payload.body,
+          data: payload.data
+        }
+      }));
     }
 
     const batches = chunk(tokens, CHUNK_SIZE);
