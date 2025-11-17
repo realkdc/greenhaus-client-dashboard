@@ -10,17 +10,23 @@ export async function GET(request: NextRequest) {
       .get();
 
     // Build CSV header
-    const headers = ["name", "code", "storeId", "uses", "createdAtISO"];
-    
+    const headers = ["Name", "Email", "Instagram", "Ref Code", "Tier"];
+
     // Build CSV rows
     const rows = ambassadorsSnapshot.docs.map((doc) => {
       const data = doc.data();
+      const fullName = `${data.firstName || ""} ${data.lastName || ""}`.trim();
+      const email = data.email || "";
+      const instagram = data.handle || "";
+      const code = data.code || "";
+      const tier = data.tier || "";
+
       return [
-        data.name || "",
-        data.code || "",
-        data.storeId || "store_123",
-        data.uses || 0,
-        data.createdAt?.toDate?.()?.toISOString() || "",
+        fullName,
+        email,
+        instagram,
+        code,
+        tier,
       ];
     });
 
