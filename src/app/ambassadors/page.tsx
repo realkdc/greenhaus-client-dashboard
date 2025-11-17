@@ -355,10 +355,23 @@ type EditAmbassadorModalProps = {
   ambassador: AmbassadorRecord | null;
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (id: string, data: { orders?: number; points?: number }) => Promise<void>;
+  onSubmit: (id: string, data: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    handle?: string;
+    tier?: AmbassadorTier;
+    orders?: number;
+    points?: number;
+  }) => Promise<void>;
 };
 
 function EditAmbassadorModal({ ambassador, isOpen, onClose, onSubmit }: EditAmbassadorModalProps) {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [handle, setHandle] = useState('');
+  const [tier, setTier] = useState<AmbassadorTier>('seed');
   const [orders, setOrders] = useState(0);
   const [points, setPoints] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -366,6 +379,11 @@ function EditAmbassadorModal({ ambassador, isOpen, onClose, onSubmit }: EditAmba
 
   useEffect(() => {
     if (ambassador) {
+      setFirstName(ambassador.firstName || '');
+      setLastName(ambassador.lastName || '');
+      setEmail(ambassador.email || '');
+      setHandle(ambassador.handle || '');
+      setTier(ambassador.tier || 'seed');
       setOrders(ambassador.orders || 0);
       setPoints(ambassador.points || 0);
     }
@@ -375,11 +393,24 @@ function EditAmbassadorModal({ ambassador, isOpen, onClose, onSubmit }: EditAmba
     e.preventDefault();
     if (!ambassador) return;
 
+    if (!firstName.trim() || !lastName.trim()) {
+      setError('First name and last name are required');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      await onSubmit(ambassador.id, { orders, points });
+      await onSubmit(ambassador.id, {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim() || undefined,
+        handle: handle.trim() || undefined,
+        tier,
+        orders,
+        points,
+      });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update ambassador');
@@ -408,32 +439,109 @@ function EditAmbassadorModal({ ambassador, isOpen, onClose, onSubmit }: EditAmba
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="edit-firstName" className="block text-sm font-medium text-gray-700 mb-1">
+                First Name *
+              </label>
+              <input
+                type="text"
+                id="edit-firstName"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="edit-lastName" className="block text-sm font-medium text-gray-700 mb-1">
+                Last Name *
+              </label>
+              <input
+                type="text"
+                id="edit-lastName"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                required
+              />
+            </div>
+          </div>
+
           <div>
-            <label htmlFor="edit-orders" className="block text-sm font-medium text-gray-700 mb-1">
-              Orders
+            <label htmlFor="edit-email" className="block text-sm font-medium text-gray-700 mb-1">
+              Email (optional)
             </label>
             <input
-              type="number"
-              id="edit-orders"
-              value={orders}
-              onChange={(e) => setOrders(parseInt(e.target.value) || 0)}
-              min="0"
+              type="email"
+              id="edit-email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="ambassador@email.com"
             />
           </div>
 
           <div>
-            <label htmlFor="edit-points" className="block text-sm font-medium text-gray-700 mb-1">
-              Points
+            <label htmlFor="edit-handle" className="block text-sm font-medium text-gray-700 mb-1">
+              Instagram Handle (optional)
             </label>
             <input
-              type="number"
-              id="edit-points"
-              value={points}
-              onChange={(e) => setPoints(parseInt(e.target.value) || 0)}
-              min="0"
+              type="text"
+              id="edit-handle"
+              value={handle}
+              onChange={(e) => setHandle(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="@username"
             />
+          </div>
+
+          <div>
+            <label htmlFor="edit-tier" className="block text-sm font-medium text-gray-700 mb-1">
+              Tier *
+            </label>
+            <select
+              id="edit-tier"
+              value={tier}
+              onChange={(e) => setTier(e.target.value as AmbassadorTier)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="seed">🌱 Seed</option>
+              <option value="sprout">🌿 Sprout</option>
+              <option value="bloom">🌸 Bloom</option>
+              <option value="evergreen">🌲 Evergreen</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="edit-orders" className="block text-sm font-medium text-gray-700 mb-1">
+                Orders
+              </label>
+              <input
+                type="number"
+                id="edit-orders"
+                value={orders}
+                onChange={(e) => setOrders(parseInt(e.target.value) || 0)}
+                min="0"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="edit-points" className="block text-sm font-medium text-gray-700 mb-1">
+                Points
+              </label>
+              <input
+                type="number"
+                id="edit-points"
+                value={points}
+                onChange={(e) => setPoints(parseInt(e.target.value) || 0)}
+                min="0"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
           </div>
 
           {error && (
@@ -538,7 +646,15 @@ export default function AmbassadorsPage() {
     setShowEditModal(true);
   };
 
-  const handleUpdateAmbassador = async (id: string, data: { orders?: number; points?: number }) => {
+  const handleUpdateAmbassador = async (id: string, data: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    handle?: string;
+    tier?: AmbassadorTier;
+    orders?: number;
+    points?: number;
+  }) => {
     const response = await fetch(`/api/ambassadors/${id}`, {
       method: 'PATCH',
       headers: {

@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { updateAmbassador } from '@/lib/ambassadors';
 
 const UpdateAmbassadorSchema = z.object({
-  firstName: z.string().min(1).optional(),
-  lastName: z.string().min(1).optional(),
+  firstName: z.string().min(1, 'First name is required').optional(),
+  lastName: z.string().min(1, 'Last name is required').optional(),
   email: z.string().email('Invalid email address').optional().or(z.literal('')),
   handle: z.string().optional(),
   tier: z.enum(['seed', 'sprout', 'bloom', 'evergreen']).optional(),
