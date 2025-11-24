@@ -67,6 +67,28 @@ async function getUniqueUserCount(
 }
 
 /**
+ * Get count of new user signups from events collection
+ */
+async function getNewUserCount(
+  startDate: Date,
+  endDate: Date
+): Promise<number> {
+  try {
+    const snapshot = await adminDb
+      .collection("events")
+      .where("type", "==", "signup")
+      .where("createdAt", ">=", Timestamp.fromDate(startDate))
+      .where("createdAt", "<=", Timestamp.fromDate(endDate))
+      .get();
+
+    return snapshot.size;
+  } catch (error) {
+    console.error("[analytics] Error getting new user count:", error);
+    return 0;
+  }
+}
+
+/**
  * Get event count for a specific event type in date range
  * Fetches by date range and filters client-side to avoid composite index requirements
  */
@@ -315,10 +337,13 @@ export async function GET(request: NextRequest) {
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
+    // Get actual new user signups from events collection
+    const newUserCount = await getNewUserCount(startDate, endDate);
+
     const response: AnalyticsResponse = {
       summary: {
         totalUsers: userIds.size,
-        newUsers30d: userIds.size, // Simplified - same as total for the period
+        newUsers30d: newUserCount,
         totalSessions30d: totalSessions,
         totalOrderClicks30d: totalOrderClicks,
         totalCrewClicks30d: totalCrewClicks,
