@@ -16,6 +16,7 @@ type AnalyticsData = {
   };
   dailyAppOpens: Array<{ date: string; count: number }>;
   dailyOrderClicks: Array<{ date: string; count: number }>;
+  dailyUsers?: Array<{ date: string; count: number }>;
   recentEvents: Array<{
     id: string;
     timestamp: string;
@@ -127,6 +128,7 @@ export default function AnalyticsDashboard() {
       <EventCharts
         dailyAppOpens={data.dailyAppOpens}
         dailyOrderClicks={data.dailyOrderClicks}
+        dailyUsers={data.dailyUsers}
       />
 
       <div>

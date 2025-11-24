@@ -25,6 +25,7 @@ type AnalyticsResponse = {
   };
   dailyAppOpens: DailyEventCount[];
   dailyOrderClicks: DailyEventCount[];
+  dailyUsers: DailyEventCount[];
   recentEvents: Array<{
     id: string;
     timestamp: string;
@@ -241,30 +242,36 @@ export async function GET(request: NextRequest) {
     // Process all metrics from the single query
     const userIds = new Set<string>();
     const dailyAppOpens = new Map<string, number>();
-    const dailyOrderClicks = new Map<string, number>();
+    const dailyCrewClicks = new Map<string, number>();
+    const dailyUsers = new Map<string, Set<string>>(); // Track unique users per day
     let totalSessions = 0;
     let totalOrderClicks = 0;
     let totalCrewClicks = 0;
 
     const allEvents = snapshot.docs.map(doc => {
       const data = doc.data() as AnalyticsEvent;
+      const date = data.createdAt.toDate().toISOString().split("T")[0];
 
       // Track unique users
       if (data.userId) {
         userIds.add(data.userId);
+
+        // Track unique users per day
+        if (!dailyUsers.has(date)) {
+          dailyUsers.set(date, new Set<string>());
+        }
+        dailyUsers.get(date)!.add(data.userId);
       }
 
       // Count events by type
       if (data.eventType === "APP_OPEN") {
         totalSessions++;
-        const date = data.createdAt.toDate().toISOString().split("T")[0];
         dailyAppOpens.set(date, (dailyAppOpens.get(date) || 0) + 1);
       } else if (data.eventType === "START_ORDER_CLICK") {
         totalOrderClicks++;
-        const date = data.createdAt.toDate().toISOString().split("T")[0];
-        dailyOrderClicks.set(date, (dailyOrderClicks.get(date) || 0) + 1);
       } else if (data.eventType === "JOIN_CREW_CLICK") {
         totalCrewClicks++;
+        dailyCrewClicks.set(date, (dailyCrewClicks.get(date) || 0) + 1);
       }
 
       return {
@@ -288,7 +295,8 @@ export async function GET(request: NextRequest) {
 
     // Fill in missing dates with 0
     const dailyAppOpensArray: DailyEventCount[] = [];
-    const dailyOrderClicksArray: DailyEventCount[] = [];
+    const dailyCrewClicksArray: DailyEventCount[] = [];
+    const dailyUsersArray: DailyEventCount[] = [];
     const currentDate = new Date(startDate);
     while (currentDate <= endDate) {
       const dateStr = currentDate.toISOString().split("T")[0];
@@ -296,9 +304,13 @@ export async function GET(request: NextRequest) {
         date: dateStr,
         count: dailyAppOpens.get(dateStr) || 0,
       });
-      dailyOrderClicksArray.push({
+      dailyCrewClicksArray.push({
         date: dateStr,
-        count: dailyOrderClicks.get(dateStr) || 0,
+        count: dailyCrewClicks.get(dateStr) || 0,
+      });
+      dailyUsersArray.push({
+        date: dateStr,
+        count: dailyUsers.get(dateStr)?.size || 0,
       });
       currentDate.setDate(currentDate.getDate() + 1);
     }
@@ -312,7 +324,8 @@ export async function GET(request: NextRequest) {
         totalCrewClicks30d: totalCrewClicks,
       },
       dailyAppOpens: dailyAppOpensArray,
-      dailyOrderClicks: dailyOrderClicksArray,
+      dailyOrderClicks: dailyCrewClicksArray,
+      dailyUsers: dailyUsersArray,
       recentEvents,
     };
 
