@@ -3,10 +3,16 @@
 import { useEffect, useState } from "react";
 import {
   Timestamp,
+  collection,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
   doc,
   updateDoc,
   deleteDoc,
   serverTimestamp,
+  type FirestoreError,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { STORES } from "@/lib/stores";
@@ -36,10 +42,10 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   minute: "2-digit",
 });
 
-const windowFormatter = (start: Date | null, end: Date | null) => {
+const windowFormatter = (start: Timestamp | null, end: Timestamp | null) => {
   if (!start || !end) return "—";
-  const startLabel = dateFormatter.format(start);
-  const endLabel = dateFormatter.format(end);
+  const startLabel = dateFormatter.format(start.toDate());
+  const endLabel = dateFormatter.format(end.toDate());
   return `${startLabel} → ${endLabel}`;
 };
 
@@ -49,85 +55,90 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
 
-  const fetchPromos = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/promotions/admin?limit=20");
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch promotions: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      const nextRows: Promo[] = data.map((item: any) => {
-        const title = typeof item.title === "string" ? item.title : "(Untitled)";
-        const { canonical: storeId } =
-          resolveStoreAliases(item.storeId) ?? {
-            canonical: coerceCanonicalStoreId(item.storeId),
-          };
-        const createdBy =
-          typeof item.createdBy === "string" ? item.createdBy : "unknown";
-
-        // Map new schema to old status field
-        let status: Promo["status"] = "draft";
-        if (item.enabled === true) {
-          const now = new Date();
-          const startsAt = item.startsAt ? new Date(item.startsAt) : null;
-          const endsAt = item.endsAt ? new Date(item.endsAt) : null;
-
-          if (startsAt && startsAt > now) {
-            status = "scheduled";
-          } else if (endsAt && endsAt <= now) {
-            status = "ended";
-          } else {
-            status = "live";
-          }
-        } else {
-          status = "draft";
-        }
-
-        const createdAt = item.createdAt ? new Date(item.createdAt) : null;
-        const startsAt = item.startsAt ? new Date(item.startsAt) : null;
-        const endsAt = item.endsAt ? new Date(item.endsAt) : null;
-
-        const promo: Promo = {
-          id: item.id,
-          title,
-          body: typeof item.body === "string" ? item.body : "",
-          storeId,
-          ...(typeof item.deepLinkUrl === "string" && item.deepLinkUrl.length
-            ? { deepLinkUrl: item.deepLinkUrl }
-            : {}),
-          startsAt: startsAt ? Timestamp.fromDate(startsAt) : null,
-          endsAt: endsAt ? Timestamp.fromDate(endsAt) : null,
-          status,
-          createdBy,
-          createdAt: createdAt ? Timestamp.fromDate(createdAt) : null,
-        };
-
-        return promo;
-      });
-
-      setRows(nextRows);
-      setFetchError(null);
-    } catch (error) {
-      console.error("Failed to read promos", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to fetch promotions";
-      setFetchError(errorMessage);
-      onError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchPromos();
+    if (!db) {
+      const message = "Firestore is not configured.";
+      setFetchError(message);
+      onError(message);
+      setLoading(false);
+      return;
+    }
 
-    // Poll for updates every 5 seconds
-    const intervalId = setInterval(fetchPromos, 5000);
+    const promosQuery = query(
+      collection(db, "promotions"),
+      orderBy("createdAt", "desc"),
+      limit(20)
+    );
 
-    return () => clearInterval(intervalId);
+    const unsubscribe = onSnapshot(
+      promosQuery,
+      (snapshot) => {
+        const nextRows: Promo[] = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+
+          const title = typeof data.title === "string" ? data.title : "(Untitled)";
+          const { canonical: storeId } =
+            resolveStoreAliases(data.storeId) ?? {
+              canonical: coerceCanonicalStoreId(data.storeId),
+            };
+          const createdBy =
+            typeof data.createdBy === "string" ? data.createdBy : "unknown";
+          // Map new schema to old status field
+          let status: Promo["status"] = "draft";
+          if (data.enabled === true) {
+            const now = new Date();
+            const startsAt = data.startsAt?.toDate();
+            const endsAt = data.endsAt?.toDate();
+
+            if (startsAt && startsAt > now) {
+              status = "scheduled";
+            } else if (endsAt && endsAt <= now) {
+              status = "ended";
+            } else {
+              status = "live";
+            }
+          } else {
+            status = "draft";
+          }
+
+          const createdAt =
+            data.createdAt instanceof Timestamp ? data.createdAt : null;
+          const startsAt =
+            data.startsAt instanceof Timestamp ? data.startsAt : null;
+          const endsAt =
+            data.endsAt instanceof Timestamp ? data.endsAt : null;
+
+          const promo: Promo = {
+            id: docSnap.id,
+            title,
+            body: typeof data.body === "string" ? data.body : "",
+            storeId,
+            ...(typeof data.deepLinkUrl === "string" && data.deepLinkUrl.length
+              ? { deepLinkUrl: data.deepLinkUrl }
+              : {}),
+            startsAt,
+            endsAt,
+            status,
+            createdBy,
+            createdAt,
+          };
+
+          return promo;
+        });
+
+        setRows(nextRows);
+        setFetchError(null);
+        setLoading(false);
+      },
+      (error: FirestoreError) => {
+        console.error("Failed to read promos", error);
+        setFetchError(error.message);
+        onError(error.message);
+        setLoading(false);
+      }
+    );
+
+    return unsubscribe;
   }, [onError]);
 
   const togglePromoStatus = async (promoId: string, currentEnabled: boolean, promo?: Promo) => {
@@ -161,9 +172,6 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
 
       await updateDoc(promoRef, updateData);
       console.log(`Successfully updated promo ${promoId}`);
-
-      // Refetch the data after update
-      await fetchPromos();
     } catch (error) {
       console.error("Failed to update promo status:", error);
       onError("Failed to update promotion status.");
@@ -189,9 +197,6 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
       const promoRef = doc(db, "promotions", promoId);
       await deleteDoc(promoRef);
       console.log(`Successfully deleted promo ${promoId}`);
-
-      // Refetch the data after delete
-      await fetchPromos();
     } catch (error) {
       console.error("Failed to delete promo:", error);
       onError("Failed to delete promotion.");
@@ -250,10 +255,7 @@ export default function PromoTable({ onError }: PromoTableProps): JSX.Element {
 
             {rows.map((promo) => {
               const storeLabel = STORE_LABEL_LOOKUP[promo.storeId] ?? promo.storeId;
-              const windowLabel = windowFormatter(
-                promo.startsAt ? promo.startsAt.toDate() : null,
-                promo.endsAt ? promo.endsAt.toDate() : null
-              );
+              const windowLabel = windowFormatter(promo.startsAt, promo.endsAt);
               const isUpdating = updating === promo.id;
               const isEnabled = promo.status === "live" || promo.status === "scheduled";
 
