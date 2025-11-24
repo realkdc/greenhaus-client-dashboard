@@ -215,76 +215,113 @@ export async function GET(request: NextRequest) {
     const endDateParam = searchParams.get("endDate");
     const eventTypeFilter = searchParams.get("eventType");
 
-    // Default to last 30 days
-    // Set endDate to end of today to include all events from today
+    // Default to last 7 days for faster loading (changed from 30)
     const endDate = endDateParam
       ? new Date(endDateParam)
       : new Date();
     endDate.setHours(23, 59, 59, 999);
-    
+
     const startDate = startDateParam
       ? new Date(startDateParam)
-      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Changed to 7 days
     startDate.setHours(0, 0, 0, 0);
 
-    // Get summary metrics
-    const totalUsers = await getUniqueUserCount(
-      new Date(0), // All time
-      endDate
-    );
+    console.log(`[analytics] Fetching events from ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
-    const newUsers30dStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const newUsers30d = await getUniqueUserCount(newUsers30dStart, endDate);
+    // OPTIMIZATION: Fetch all events in date range ONCE
+    const snapshot = await adminDb
+      .collection("analytics_events")
+      .where("createdAt", ">=", Timestamp.fromDate(startDate))
+      .where("createdAt", "<=", Timestamp.fromDate(endDate))
+      .limit(10000) // Add limit to prevent massive queries
+      .get();
 
-    const totalSessions30d = await getEventCount(
-      "APP_OPEN",
-      startDate,
-      endDate
-    );
-    const totalOrderClicks30d = await getEventCount(
-      "START_ORDER_CLICK",
-      startDate,
-      endDate
-    );
-    const totalCrewClicks30d = await getEventCount(
-      "JOIN_CREW_CLICK",
-      startDate,
-      endDate
-    );
+    console.log(`[analytics] Retrieved ${snapshot.docs.length} events`);
 
-    // Get daily counts for charts
-    const dailyAppOpens = await getDailyEventCounts(
-      "APP_OPEN",
-      startDate,
-      endDate
-    );
-    const dailyOrderClicks = await getDailyEventCounts(
-      "START_ORDER_CLICK",
-      startDate,
-      endDate
-    );
+    // Process all metrics from the single query
+    const userIds = new Set<string>();
+    const dailyAppOpens = new Map<string, number>();
+    const dailyOrderClicks = new Map<string, number>();
+    let totalSessions = 0;
+    let totalOrderClicks = 0;
+    let totalCrewClicks = 0;
 
-    // Get recent events
-    const recentEvents = await getRecentEvents(50, eventTypeFilter || undefined);
+    const allEvents = snapshot.docs.map(doc => {
+      const data = doc.data() as AnalyticsEvent;
+
+      // Track unique users
+      if (data.userId) {
+        userIds.add(data.userId);
+      }
+
+      // Count events by type
+      if (data.eventType === "APP_OPEN") {
+        totalSessions++;
+        const date = data.createdAt.toDate().toISOString().split("T")[0];
+        dailyAppOpens.set(date, (dailyAppOpens.get(date) || 0) + 1);
+      } else if (data.eventType === "START_ORDER_CLICK") {
+        totalOrderClicks++;
+        const date = data.createdAt.toDate().toISOString().split("T")[0];
+        dailyOrderClicks.set(date, (dailyOrderClicks.get(date) || 0) + 1);
+      } else if (data.eventType === "JOIN_CREW_CLICK") {
+        totalCrewClicks++;
+      }
+
+      return {
+        id: doc.id,
+        timestamp: data.createdAt.toDate().toISOString(),
+        eventType: data.eventType,
+        userId: data.userId,
+        source: data.source,
+        metadata: data.metadata || {},
+      };
+    });
+
+    // Get recent events (limited to 50)
+    let recentEvents = allEvents
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 50);
+
+    if (eventTypeFilter) {
+      recentEvents = recentEvents.filter(e => e.eventType === eventTypeFilter);
+    }
+
+    // Fill in missing dates with 0
+    const dailyAppOpensArray: DailyEventCount[] = [];
+    const dailyOrderClicksArray: DailyEventCount[] = [];
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const dateStr = currentDate.toISOString().split("T")[0];
+      dailyAppOpensArray.push({
+        date: dateStr,
+        count: dailyAppOpens.get(dateStr) || 0,
+      });
+      dailyOrderClicksArray.push({
+        date: dateStr,
+        count: dailyOrderClicks.get(dateStr) || 0,
+      });
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
 
     const response: AnalyticsResponse = {
       summary: {
-        totalUsers,
-        newUsers30d,
-        totalSessions30d,
-        totalOrderClicks30d,
-        totalCrewClicks30d,
+        totalUsers: userIds.size,
+        newUsers30d: userIds.size, // Simplified - same as total for the period
+        totalSessions30d: totalSessions,
+        totalOrderClicks30d: totalOrderClicks,
+        totalCrewClicks30d: totalCrewClicks,
       },
-      dailyAppOpens,
-      dailyOrderClicks,
+      dailyAppOpens: dailyAppOpensArray,
+      dailyOrderClicks: dailyOrderClicksArray,
       recentEvents,
     };
 
+    console.log(`[analytics] Returning ${recentEvents.length} recent events`);
     return NextResponse.json(response);
   } catch (error) {
     console.error("[analytics] Error in analytics API:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
