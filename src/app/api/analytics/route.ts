@@ -240,14 +240,18 @@ export async function GET(request: NextRequest) {
 
     // Default to last 7 days for faster loading (changed from 30)
     const endDate = endDateParam
-      ? new Date(endDateParam)
+      ? new Date(endDateParam + 'T23:59:59.999Z')
       : new Date();
-    endDate.setHours(23, 59, 59, 999);
+    if (!endDateParam) {
+      endDate.setHours(23, 59, 59, 999);
+    }
 
     const startDate = startDateParam
-      ? new Date(startDateParam)
+      ? new Date(startDateParam + 'T00:00:00.000Z')
       : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Changed to 7 days
-    startDate.setHours(0, 0, 0, 0);
+    if (!startDateParam) {
+      startDate.setHours(0, 0, 0, 0);
+    }
 
     console.log(`[analytics] Fetching events from ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
@@ -264,6 +268,7 @@ export async function GET(request: NextRequest) {
     // Process all metrics from the single query
     const userIds = new Set<string>();
     const dailyAppOpens = new Map<string, number>();
+    const dailyOrderClicks = new Map<string, number>();
     const dailyCrewClicks = new Map<string, number>();
     const dailyUsers = new Map<string, Set<string>>(); // Track unique users per day
     let totalSessions = 0;
@@ -272,6 +277,7 @@ export async function GET(request: NextRequest) {
 
     const allEvents = snapshot.docs.map(doc => {
       const data = doc.data() as AnalyticsEvent;
+      // Use UTC date for consistency
       const date = data.createdAt.toDate().toISOString().split("T")[0];
 
       // Track unique users
@@ -291,6 +297,7 @@ export async function GET(request: NextRequest) {
         dailyAppOpens.set(date, (dailyAppOpens.get(date) || 0) + 1);
       } else if (data.eventType === "START_ORDER_CLICK") {
         totalOrderClicks++;
+        dailyOrderClicks.set(date, (dailyOrderClicks.get(date) || 0) + 1);
       } else if (data.eventType === "JOIN_CREW_CLICK") {
         totalCrewClicks++;
         dailyCrewClicks.set(date, (dailyCrewClicks.get(date) || 0) + 1);
@@ -317,7 +324,7 @@ export async function GET(request: NextRequest) {
 
     // Fill in missing dates with 0
     const dailyAppOpensArray: DailyEventCount[] = [];
-    const dailyCrewClicksArray: DailyEventCount[] = [];
+    const dailyOrderClicksArray: DailyEventCount[] = [];
     const dailyUsersArray: DailyEventCount[] = [];
     const currentDate = new Date(startDate);
     while (currentDate <= endDate) {
@@ -326,9 +333,9 @@ export async function GET(request: NextRequest) {
         date: dateStr,
         count: dailyAppOpens.get(dateStr) || 0,
       });
-      dailyCrewClicksArray.push({
+      dailyOrderClicksArray.push({
         date: dateStr,
-        count: dailyCrewClicks.get(dateStr) || 0,
+        count: dailyOrderClicks.get(dateStr) || 0,
       });
       dailyUsersArray.push({
         date: dateStr,
@@ -349,7 +356,7 @@ export async function GET(request: NextRequest) {
         totalCrewClicks30d: totalCrewClicks,
       },
       dailyAppOpens: dailyAppOpensArray,
-      dailyOrderClicks: dailyCrewClicksArray,
+      dailyOrderClicks: dailyOrderClicksArray,
       dailyUsers: dailyUsersArray,
       recentEvents,
     };

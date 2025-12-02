@@ -24,10 +24,10 @@ export default function AnalyticsFilters({
   onFilterChange,
 }: AnalyticsFiltersProps) {
   const today = new Date();
-  const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   const [startDate, setStartDate] = useState(
-    thirtyDaysAgo.toISOString().split('T')[0]
+    sevenDaysAgo.toISOString().split('T')[0]
   );
   const [endDate, setEndDate] = useState(today.toISOString().split('T')[0]);
   const [eventType, setEventType] = useState('');
