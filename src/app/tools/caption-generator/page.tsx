@@ -8,6 +8,8 @@ export default function CaptionGeneratorPage(): JSX.Element {
   const [files, setFiles] = useState<FileList | null>(null);
   const [googleDriveLinks, setGoogleDriveLinks] = useState("");
   const [contentName, setContentName] = useState("");
+  const [contentType, setContentType] = useState("Single Post");
+  const [platform, setPlatform] = useState("Instagram");
   const [generatedCaption, setGeneratedCaption] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState("");
@@ -44,6 +46,8 @@ export default function CaptionGeneratorPage(): JSX.Element {
       }
 
       formData.append("contentName", contentName.trim());
+      formData.append("contentType", contentType);
+      formData.append("platform", platform);
 
       const response = await fetch("/api/tools/generate-caption", {
         method: "POST",
@@ -232,6 +236,55 @@ export default function CaptionGeneratorPage(): JSX.Element {
                   placeholder="https://drive.google.com/..."
                   className="mt-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
                 />
+              </div>
+
+              {/* Content Type & Platform Selection */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="content-type"
+                    className="block text-sm font-semibold text-slate-900"
+                  >
+                    Content Type
+                  </label>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Select the type of content you're creating
+                  </p>
+                  <select
+                    id="content-type"
+                    value={contentType}
+                    onChange={(e) => setContentType(e.target.value)}
+                    className="mt-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+                  >
+                    <option value="Single Post">Single Post</option>
+                    <option value="Carousel">Carousel (2-10 slides)</option>
+                    <option value="Reel">Reel / Video</option>
+                    <option value="Story">Story</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="platform"
+                    className="block text-sm font-semibold text-slate-900"
+                  >
+                    Platform
+                  </label>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Where will this be posted?
+                  </p>
+                  <select
+                    id="platform"
+                    value={platform}
+                    onChange={(e) => setPlatform(e.target.value)}
+                    className="mt-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+                  >
+                    <option value="Instagram">Instagram</option>
+                    <option value="Facebook">Facebook</option>
+                    <option value="Twitter">Twitter / X</option>
+                    <option value="LinkedIn">LinkedIn</option>
+                  </select>
+                </div>
               </div>
 
               {/* Content Name/Idea */}

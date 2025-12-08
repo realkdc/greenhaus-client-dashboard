@@ -66,6 +66,8 @@ export async function POST(request: NextRequest) {
     const files = formData.getAll("files") as File[];
     const googleDriveLinks = formData.get("googleDriveLinks") as string;
     const contentName = formData.get("contentName") as string;
+    const contentType = formData.get("contentType") as string || "Single Post";
+    const platform = formData.get("platform") as string || "Instagram";
 
     // Validate input
     if (files.length === 0 && !googleDriveLinks) {
@@ -94,7 +96,10 @@ IMPORTANT RULES:
 Your task is to analyze the provided content and generate ONE perfect caption that follows all these guidelines.`;
 
     // Build the user prompt
-    let userPrompt = "Generate an Instagram caption for this content:\n\n";
+    let userPrompt = `Generate a ${platform} caption for this content:\n\n`;
+
+    userPrompt += `Content Type: ${contentType}\n`;
+    userPrompt += `Platform: ${platform}\n\n`;
 
     if (contentName) {
       userPrompt += `Content Description: ${contentName}\n\n`;
@@ -208,8 +213,9 @@ Your task is to analyze the provided content and generate ONE perfect caption th
       }
     }
 
-    // Add all collected images to the message (limit to 10 total)
-    const maxImages = 10;
+    // Add all collected images to the message
+    // For carousels, we want to support up to 10 slides
+    const maxImages = contentType === "Carousel" ? 12 : 10;
     for (const image of imagesToProcess.slice(0, maxImages)) {
       messages[1].content.push({
         type: "image_url",
