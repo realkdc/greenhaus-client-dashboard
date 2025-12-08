@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import captionStyleJson from "@/data/caption-style.json";
+import { extractFileId, downloadDriveFile } from "@/lib/tools/googleDrive";
+import {
+  extractVideoFrames,
+  getVideoDuration,
+  isVideoFile,
+  getFrameInterval,
+} from "@/lib/tools/videoProcessing";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -10,6 +17,11 @@ const openai = new OpenAI({
 async function fileToBase64(file: File): Promise<string> {
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
+  return buffer.toString("base64");
+}
+
+// Helper to convert buffer to base64
+function bufferToBase64(buffer: Buffer): string {
   return buffer.toString("base64");
 }
 
@@ -71,16 +83,6 @@ Your task is to analyze the provided content and generate ONE perfect caption th
       userPrompt += `Content Description: ${contentName}\n\n`;
     }
 
-    if (googleDriveLinks) {
-      userPrompt += `Google Drive Links: ${googleDriveLinks}\n\n`;
-    }
-
-    if (files.length > 0) {
-      userPrompt += `I'm uploading ${files.length} file(s) for you to analyze.\n`;
-    }
-
-    userPrompt += "\nPlease create a caption that follows the GreenHaus brand guidelines perfectly.";
-
     // Build messages array for OpenAI
     const messages: any[] = [
       { role: "system", content: systemPrompt },
@@ -92,27 +94,127 @@ Your task is to analyze the provided content and generate ONE perfect caption th
       },
     ];
 
-    // Add images if provided (GPT-4o-mini supports vision)
+    // Collection to hold all images (from files and Drive)
+    const imagesToProcess: Array<{ base64: string; mimeType: string }> = [];
+
+    // Process uploaded files
     if (files.length > 0) {
-      // Process images only (videos would need different handling)
-      const imageFiles = files.filter((file) =>
-        file.type.startsWith("image/")
-      );
+      for (const file of files) {
+        if (file.type.startsWith("image/")) {
+          // Handle image files
+          const base64 = await fileToBase64(file);
+          const mimeType = getImageMimeType(file);
+          imagesToProcess.push({ base64, mimeType });
+        } else if (file.type.startsWith("video/")) {
+          // Handle video files - extract frames
+          try {
+            const buffer = Buffer.from(await file.arrayBuffer());
+            const duration = await getVideoDuration(buffer, file.name);
+            const interval = getFrameInterval(duration, 4);
 
-      for (const file of imageFiles.slice(0, 4)) {
-        // Limit to 4 images
-        const base64 = await fileToBase64(file);
-        const mimeType = getImageMimeType(file);
+            const frames = await extractVideoFrames(buffer, file.name, {
+              maxFrames: 4,
+              interval,
+            });
 
-        messages[1].content.push({
-          type: "image_url",
-          image_url: {
-            url: `data:${mimeType};base64,${base64}`,
-            detail: "low", // Use "low" for faster processing and lower cost
-          },
-        });
+            // Add extracted frames as images
+            for (const frame of frames) {
+              imagesToProcess.push({
+                base64: bufferToBase64(frame),
+                mimeType: "image/jpeg",
+              });
+            }
+
+            userPrompt += `\nNote: Video file "${file.name}" (${Math.round(duration)}s duration) - analyzing ${frames.length} extracted frames.\n`;
+          } catch (error: any) {
+            console.error("Error processing video:", error);
+            userPrompt += `\nNote: Unable to process video "${file.name}". Please describe the video content manually.\n`;
+          }
+        }
       }
     }
+
+    // Process Google Drive links
+    if (googleDriveLinks) {
+      const links = googleDriveLinks
+        .split(/[\n,]/)
+        .map((link) => link.trim())
+        .filter((link) => link.length > 0);
+
+      for (const link of links) {
+        try {
+          const fileId = extractFileId(link);
+          if (!fileId) {
+            userPrompt += `\nNote: Invalid Google Drive link: ${link}\n`;
+            continue;
+          }
+
+          const { buffer, mimeType, fileName } = await downloadDriveFile(fileId);
+
+          if (mimeType.startsWith("image/")) {
+            // Handle image from Drive
+            imagesToProcess.push({
+              base64: bufferToBase64(buffer),
+              mimeType,
+            });
+            userPrompt += `\nProcessed image from Drive: ${fileName}\n`;
+          } else if (isVideoFile(mimeType)) {
+            // Handle video from Drive - extract frames
+            try {
+              const duration = await getVideoDuration(buffer, fileName);
+              const interval = getFrameInterval(duration, 4);
+
+              const frames = await extractVideoFrames(buffer, fileName, {
+                maxFrames: 4,
+                interval,
+              });
+
+              for (const frame of frames) {
+                imagesToProcess.push({
+                  base64: bufferToBase64(frame),
+                  mimeType: "image/jpeg",
+                });
+              }
+
+              userPrompt += `\nProcessed video from Drive: ${fileName} (${Math.round(duration)}s) - analyzing ${frames.length} frames.\n`;
+            } catch (error: any) {
+              console.error("Error processing Drive video:", error);
+              userPrompt += `\nNote: Unable to process video "${fileName}" from Drive.\n`;
+            }
+          } else {
+            userPrompt += `\nNote: Unsupported file type from Drive: ${fileName} (${mimeType})\n`;
+          }
+        } catch (error: any) {
+          console.error("Error downloading from Drive:", error);
+          userPrompt += `\nNote: Could not access file from link: ${link}. ${error.message}\n`;
+        }
+      }
+    }
+
+    // Add all collected images to the message (limit to 10 total)
+    const maxImages = 10;
+    for (const image of imagesToProcess.slice(0, maxImages)) {
+      messages[1].content.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${image.mimeType};base64,${image.base64}`,
+          detail: "low", // Use "low" for faster processing and lower cost
+        },
+      });
+    }
+
+    if (imagesToProcess.length > maxImages) {
+      userPrompt += `\nNote: Analyzed first ${maxImages} of ${imagesToProcess.length} total images/frames.\n`;
+    }
+
+    if (imagesToProcess.length === 0) {
+      userPrompt += `\nNo visual content was successfully processed. Please create a caption based on the description provided.\n`;
+    }
+
+    userPrompt += "\nPlease create a caption that follows the GreenHaus brand guidelines perfectly.";
+
+    // Update the text content
+    messages[1].content[0].text = userPrompt;
 
     // Call OpenAI API with GPT-5 mini (supports vision)
     const completion = await openai.chat.completions.create({
