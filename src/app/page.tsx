@@ -41,6 +41,12 @@ export default function Home(): JSX.Element {
             description:
               "Empower GreenHaus crew members with transparent performance data.",
           },
+          {
+            name: "Tools Dashboard",
+            href: "/tools",
+            description:
+              "Access custom tools and automation software to streamline your workflow.",
+          },
         ].map((item) => (
           <Link
             key={item.href}
