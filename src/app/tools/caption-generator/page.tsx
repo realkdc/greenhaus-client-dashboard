@@ -114,7 +114,10 @@ export default function CaptionGeneratorPage(): JSX.Element {
     handleGenerateCaption();
   };
 
-  const canGenerate = (files && files.length > 0) || googleDriveLinks.trim() !== "";
+  const canGenerate =
+    (files && files.length > 0) ||
+    googleDriveLinks.trim() !== "" ||
+    contentName.trim() !== "";
 
   return (
     <RequireAuth>

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import captionStyleJson from "@/data/caption-style.json";
 import { extractFileId, downloadDriveFile } from "@/lib/tools/googleDrive";
-import { analyzeVideoWithGemini, isGeminiConfigured } from "@/lib/tools/geminiVideo";
 import { checkUsageLimit, recordUsage, calculateCost } from "@/lib/usage/tracker";
 
 const openai = new OpenAI({
@@ -64,10 +63,10 @@ export async function POST(request: NextRequest) {
     const contentType = formData.get("contentType") as string || "Single Post";
     const platform = formData.get("platform") as string || "Instagram";
 
-    // Validate input
-    if (files.length === 0 && !googleDriveLinks) {
+    // Validate input - require either files, Drive links, OR content description
+    if (files.length === 0 && !googleDriveLinks && !contentName) {
       return NextResponse.json(
-        { error: "Please provide at least one file or Google Drive link" },
+        { error: "Please provide at least one file, Google Drive link, or content description" },
         { status: 400 }
       );
     }
@@ -123,24 +122,10 @@ Your task is to analyze the provided content and generate ONE perfect caption th
           const mimeType = getImageMimeType(file);
           imagesToProcess.push({ base64, mimeType });
         } else if (file.type.startsWith("video/")) {
-          // Handle video files using Gemini AI
-          if (isGeminiConfigured()) {
-            try {
-              const videoBuffer = Buffer.from(await file.arrayBuffer());
-              const videoAnalysis = await analyzeVideoWithGemini(
-                videoBuffer,
-                file.name,
-                file.type
-              );
-              userPrompt += `\nVideo Analysis (${file.name}):\n${videoAnalysis}\n`;
-            } catch (error: any) {
-              console.error("Error analyzing video with Gemini:", error);
-              userPrompt += `\nNote: Could not analyze video "${file.name}". ${error.message}\n`;
-            }
-          } else {
-            userPrompt += `\nNote: Video file "${file.name}" uploaded. Video analysis unavailable (Gemini API not configured).\n`;
-            console.log("Video processing skipped - Gemini API not configured");
-          }
+          // Skip video processing due to serverless payload size limits
+          // Videos larger than 4.5MB cause FUNCTION_PAYLOAD_TOO_LARGE errors
+          userPrompt += `\nNote: Video file "${file.name}" detected. Please describe the video content in the "Content Name / Idea" field for best caption results.\n`;
+          console.log("Video processing skipped - serverless payload size limits");
         }
       }
     }
@@ -170,23 +155,9 @@ Your task is to analyze the provided content and generate ONE perfect caption th
             });
             userPrompt += `\nProcessed image from Drive: ${fileName}\n`;
           } else if (mimeType.startsWith("video/")) {
-            // Handle video from Drive using Gemini AI
-            if (isGeminiConfigured()) {
-              try {
-                const videoAnalysis = await analyzeVideoWithGemini(
-                  buffer,
-                  fileName,
-                  mimeType
-                );
-                userPrompt += `\nVideo Analysis from Drive (${fileName}):\n${videoAnalysis}\n`;
-              } catch (error: any) {
-                console.error("Error analyzing Drive video with Gemini:", error);
-                userPrompt += `\nNote: Could not analyze video "${fileName}" from Drive. ${error.message}\n`;
-              }
-            } else {
-              userPrompt += `\nNote: Video file "${fileName}" from Drive. Video analysis unavailable (Gemini API not configured).\n`;
-              console.log("Video processing skipped for Drive file - Gemini API not configured");
-            }
+            // Skip video processing due to serverless payload size limits
+            userPrompt += `\nNote: Video file "${fileName}" from Drive detected. Please describe the video content in the "Content Name / Idea" field for best caption results.\n`;
+            console.log("Video processing skipped for Drive file - serverless payload size limits");
           } else {
             userPrompt += `\nNote: Unsupported file type from Drive: ${fileName} (${mimeType})\n`;
           }
