@@ -366,11 +366,6 @@ export default function CaptionGeneratorPage(): JSX.Element {
                     <div className="flex-1">
                       <h3 className="text-sm font-semibold text-yellow-900">Usage Alert</h3>
                       <p className="mt-1 text-sm text-yellow-700">{usageWarning}</p>
-                      {usageInfo && (
-                        <p className="mt-2 text-xs text-yellow-600">
-                          {usageInfo.percentUsed}% used • ${usageInfo.remainingCost} remaining this month
-                        </p>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -521,33 +516,6 @@ export default function CaptionGeneratorPage(): JSX.Element {
               </div>
             </div>
 
-            <div className="rounded-xl border border-green-200 bg-green-50 p-4">
-              <div className="flex items-start gap-3">
-                <svg
-                  className="h-5 w-5 flex-shrink-0 text-green-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-green-900">
-                    Usage Limit
-                  </h3>
-                  <p className="mt-1 text-sm text-green-700">
-                    This tool has a $5 monthly usage limit to control costs. You'll see warnings
-                    at 80% usage and the tool will pause at 100% until next month. Average cost
-                    per caption: ~$0.02
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </section>

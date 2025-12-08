@@ -74,7 +74,7 @@ export async function checkUsageLimit(): Promise<UsageCheckResult> {
       limit,
       remainingCost: 0,
       percentUsed,
-      warningMessage: `Monthly usage limit of $${limit} reached. Limit will reset next month.`,
+      warningMessage: `Monthly usage limit reached. Limit will reset next month.`,
     };
   }
 
@@ -86,7 +86,7 @@ export async function checkUsageLimit(): Promise<UsageCheckResult> {
       limit,
       remainingCost,
       percentUsed,
-      warningMessage: `Warning: ${percentUsed.toFixed(0)}% of monthly limit used ($${usage.totalCost.toFixed(2)} of $${limit}).`,
+      warningMessage: `Approaching usage limit for this month. Please use responsibly.`,
     };
   }
 
