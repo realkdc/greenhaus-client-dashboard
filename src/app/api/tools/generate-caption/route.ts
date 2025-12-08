@@ -2,12 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import captionStyleJson from "@/data/caption-style.json";
 import { extractFileId, downloadDriveFile } from "@/lib/tools/googleDrive";
-import {
-  extractVideoFrames,
-  getVideoDuration,
-  isVideoFile,
-  getFrameExtractionSettings,
-} from "@/lib/tools/videoProcessing";
+import { analyzeVideoWithGemini, isGeminiConfigured } from "@/lib/tools/geminiVideo";
 import { checkUsageLimit, recordUsage, calculateCost } from "@/lib/usage/tracker";
 
 const openai = new OpenAI({
@@ -128,29 +123,23 @@ Your task is to analyze the provided content and generate ONE perfect caption th
           const mimeType = getImageMimeType(file);
           imagesToProcess.push({ base64, mimeType });
         } else if (file.type.startsWith("video/")) {
-          // Handle video files - extract frames
-          try {
-            const buffer = Buffer.from(await file.arrayBuffer());
-            const duration = await getVideoDuration(buffer, file.name);
-            const { maxFrames, interval } = getFrameExtractionSettings(duration);
-
-            const frames = await extractVideoFrames(buffer, file.name, {
-              maxFrames,
-              interval,
-            });
-
-            // Add extracted frames as images
-            for (const frame of frames) {
-              imagesToProcess.push({
-                base64: bufferToBase64(frame),
-                mimeType: "image/jpeg",
-              });
+          // Handle video files using Gemini AI
+          if (isGeminiConfigured()) {
+            try {
+              const videoBuffer = Buffer.from(await file.arrayBuffer());
+              const videoAnalysis = await analyzeVideoWithGemini(
+                videoBuffer,
+                file.name,
+                file.type
+              );
+              userPrompt += `\nVideo Analysis (${file.name}):\n${videoAnalysis}\n`;
+            } catch (error: any) {
+              console.error("Error analyzing video with Gemini:", error);
+              userPrompt += `\nNote: Could not analyze video "${file.name}". ${error.message}\n`;
             }
-
-            userPrompt += `\nNote: Video file "${file.name}" (${Math.round(duration)}s duration) - analyzing ${frames.length} extracted frames.\n`;
-          } catch (error: any) {
-            console.error("Error processing video:", error);
-            userPrompt += `\nNote: Unable to process video "${file.name}". Please describe the video content manually.\n`;
+          } else {
+            userPrompt += `\nNote: Video file "${file.name}" uploaded. Video analysis unavailable (Gemini API not configured).\n`;
+            console.log("Video processing skipped - Gemini API not configured");
           }
         }
       }
@@ -180,28 +169,23 @@ Your task is to analyze the provided content and generate ONE perfect caption th
               mimeType,
             });
             userPrompt += `\nProcessed image from Drive: ${fileName}\n`;
-          } else if (isVideoFile(mimeType)) {
-            // Handle video from Drive - extract frames
-            try {
-              const duration = await getVideoDuration(buffer, fileName);
-              const { maxFrames, interval } = getFrameExtractionSettings(duration);
-
-              const frames = await extractVideoFrames(buffer, fileName, {
-                maxFrames,
-                interval,
-              });
-
-              for (const frame of frames) {
-                imagesToProcess.push({
-                  base64: bufferToBase64(frame),
-                  mimeType: "image/jpeg",
-                });
+          } else if (mimeType.startsWith("video/")) {
+            // Handle video from Drive using Gemini AI
+            if (isGeminiConfigured()) {
+              try {
+                const videoAnalysis = await analyzeVideoWithGemini(
+                  buffer,
+                  fileName,
+                  mimeType
+                );
+                userPrompt += `\nVideo Analysis from Drive (${fileName}):\n${videoAnalysis}\n`;
+              } catch (error: any) {
+                console.error("Error analyzing Drive video with Gemini:", error);
+                userPrompt += `\nNote: Could not analyze video "${fileName}" from Drive. ${error.message}\n`;
               }
-
-              userPrompt += `\nProcessed video from Drive: ${fileName} (${Math.round(duration)}s) - analyzing ${frames.length} frames.\n`;
-            } catch (error: any) {
-              console.error("Error processing Drive video:", error);
-              userPrompt += `\nNote: Unable to process video "${fileName}" from Drive.\n`;
+            } else {
+              userPrompt += `\nNote: Video file "${fileName}" from Drive. Video analysis unavailable (Gemini API not configured).\n`;
+              console.log("Video processing skipped for Drive file - Gemini API not configured");
             }
           } else {
             userPrompt += `\nNote: Unsupported file type from Drive: ${fileName} (${mimeType})\n`;
