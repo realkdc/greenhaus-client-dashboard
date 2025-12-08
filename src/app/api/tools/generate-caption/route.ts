@@ -15,20 +15,13 @@ async function fileToBase64(file: File): Promise<string> {
 
 // Helper to get image MIME type
 function getImageMimeType(file: File): string {
-  const ext = file.name.split(".").pop()?.toLowerCase();
-  switch (ext) {
-    case "jpg":
-    case "jpeg":
-      return "image/jpeg";
-    case "png":
-      return "image/png";
-    case "gif":
-      return "image/gif";
-    case "webp":
-      return "image/webp";
-    default:
-      return "image/jpeg";
+  // Use the File object's type property, which the browser provides correctly
+  // This is more reliable than inferring from filename extensions
+  if (file.type && file.type.startsWith("image/")) {
+    return file.type;
   }
+  // Fallback to jpeg if type is missing or invalid (shouldn't happen after filtering)
+  return "image/jpeg";
 }
 
 export async function POST(request: NextRequest) {
@@ -114,9 +107,9 @@ Your task is to analyze the provided content and generate ONE perfect caption th
       }
     }
 
-    // Call OpenAI API with GPT-4o-mini (supports vision)
+    // Call OpenAI API with GPT-5 mini (supports vision)
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5-mini",
       messages: messages,
       max_tokens: 500,
       temperature: 0.8, // Slightly creative but still consistent
