@@ -11,6 +11,11 @@ export default function CaptionGeneratorPage(): JSX.Element {
   const [generatedCaption, setGeneratedCaption] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState("");
+  const [usageWarning, setUsageWarning] = useState("");
+  const [usageInfo, setUsageInfo] = useState<{
+    percentUsed: number;
+    remainingCost: string;
+  } | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -52,6 +57,15 @@ export default function CaptionGeneratorPage(): JSX.Element {
       }
 
       setGeneratedCaption(data.caption);
+
+      // Handle usage warnings
+      if (data.usageWarning) {
+        setUsageWarning(data.usageWarning);
+      }
+
+      if (data.usageInfo) {
+        setUsageInfo(data.usageInfo);
+      }
     } catch (err) {
       console.error("Error generating caption:", err);
       setError(err instanceof Error ? err.message : "Failed to generate caption");
@@ -279,6 +293,36 @@ export default function CaptionGeneratorPage(): JSX.Element {
                 </button>
               </div>
 
+              {/* Usage Warning */}
+              {usageWarning && !error && (
+                <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <svg
+                      className="h-5 w-5 flex-shrink-0 text-yellow-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                      />
+                    </svg>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-semibold text-yellow-900">Usage Alert</h3>
+                      <p className="mt-1 text-sm text-yellow-700">{usageWarning}</p>
+                      {usageInfo && (
+                        <p className="mt-2 text-xs text-yellow-600">
+                          {usageInfo.percentUsed}% used • ${usageInfo.remainingCost} remaining this month
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Error Message */}
               {error && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-4">
@@ -365,31 +409,90 @@ export default function CaptionGeneratorPage(): JSX.Element {
             </div>
           </div>
 
-          {/* Info Box */}
-          <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
-            <div className="flex items-start gap-3">
-              <svg
-                className="h-5 w-5 flex-shrink-0 text-blue-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <div>
-                <h3 className="text-sm font-semibold text-blue-900">
-                  How it works
-                </h3>
-                <p className="mt-1 text-sm text-blue-700">
-                  The AI analyzes your content and generates captions following GreenHaus
-                  brand guidelines: fun, playful tone with curated emojis, proper
-                  hashtags, and compelling CTAs. Perfect for Instagram posts!
-                </p>
+          {/* Info Boxes */}
+          <div className="mt-6 space-y-4">
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <div className="flex items-start gap-3">
+                <svg
+                  className="h-5 w-5 flex-shrink-0 text-blue-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-blue-900">
+                    How it works
+                  </h3>
+                  <p className="mt-1 text-sm text-blue-700">
+                    The AI analyzes your content and generates captions following GreenHaus
+                    brand guidelines: fun, playful tone with curated emojis, proper
+                    hashtags, and compelling CTAs. Videos are automatically processed with
+                    adaptive frame extraction (3-15 frames based on video length).
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-purple-200 bg-purple-50 p-4">
+              <div className="flex items-start gap-3">
+                <svg
+                  className="h-5 w-5 flex-shrink-0 text-purple-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"
+                  />
+                </svg>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-purple-900">
+                    Google Drive Requirements
+                  </h3>
+                  <p className="mt-1 text-sm text-purple-700">
+                    <strong>Important:</strong> Google Drive links must be set to "Anyone with
+                    the link can view." Right-click the file → Share → Change to "Anyone with
+                    the link" before pasting the link here.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+              <div className="flex items-start gap-3">
+                <svg
+                  className="h-5 w-5 flex-shrink-0 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-green-900">
+                    Usage Limit
+                  </h3>
+                  <p className="mt-1 text-sm text-green-700">
+                    This tool has a $5 monthly usage limit to control costs. You'll see warnings
+                    at 80% usage and the tool will pause at 100% until next month. Average cost
+                    per caption: ~$0.02
+                  </p>
+                </div>
               </div>
             </div>
           </div>

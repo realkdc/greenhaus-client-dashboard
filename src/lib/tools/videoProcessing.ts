@@ -104,9 +104,37 @@ export function isVideoFile(mimeType: string): boolean {
   return mimeType.startsWith("video/");
 }
 
-// Get appropriate frame extraction interval based on video duration
+// Get appropriate frame extraction settings based on video duration
+export function getFrameExtractionSettings(durationSeconds: number): {
+  maxFrames: number;
+  interval: number;
+} {
+  // Adaptive frame extraction based on video length:
+  // - Short videos (0-15s): 3 frames
+  // - Medium videos (15-60s): 6 frames
+  // - Long videos (60-300s): 10 frames
+  // - Very long videos (300+s): 15 frames
+
+  let maxFrames: number;
+
+  if (durationSeconds <= 15) {
+    maxFrames = 3;
+  } else if (durationSeconds <= 60) {
+    maxFrames = 6;
+  } else if (durationSeconds <= 300) {
+    maxFrames = 10;
+  } else {
+    maxFrames = 15;
+  }
+
+  // Calculate interval to evenly distribute frames
+  const interval = Math.max(1, Math.floor(durationSeconds / maxFrames));
+
+  return { maxFrames, interval };
+}
+
+// Legacy function for backward compatibility
 export function getFrameInterval(durationSeconds: number, maxFrames: number = 4): number {
-  // Calculate interval to get approximately maxFrames evenly distributed
   const interval = Math.max(1, Math.floor(durationSeconds / maxFrames));
   return interval;
 }

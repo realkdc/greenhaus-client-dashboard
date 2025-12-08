@@ -6,8 +6,9 @@ import {
   extractVideoFrames,
   getVideoDuration,
   isVideoFile,
-  getFrameInterval,
+  getFrameExtractionSettings,
 } from "@/lib/tools/videoProcessing";
+import { checkUsageLimit, recordUsage, calculateCost } from "@/lib/usage/tracker";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -45,6 +46,22 @@ function getImageMimeType(file: File): string {
 
 export async function POST(request: NextRequest) {
   try {
+    // Check usage limits first
+    const usageCheck = await checkUsageLimit();
+    if (!usageCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: usageCheck.warningMessage,
+          usageInfo: {
+            currentCost: usageCheck.currentCost,
+            limit: usageCheck.limit,
+            percentUsed: usageCheck.percentUsed,
+          }
+        },
+        { status: 429 } // Too Many Requests
+      );
+    }
+
     const formData = await request.formData();
     const files = formData.getAll("files") as File[];
     const googleDriveLinks = formData.get("googleDriveLinks") as string;
@@ -110,10 +127,10 @@ Your task is to analyze the provided content and generate ONE perfect caption th
           try {
             const buffer = Buffer.from(await file.arrayBuffer());
             const duration = await getVideoDuration(buffer, file.name);
-            const interval = getFrameInterval(duration, 4);
+            const { maxFrames, interval } = getFrameExtractionSettings(duration);
 
             const frames = await extractVideoFrames(buffer, file.name, {
-              maxFrames: 4,
+              maxFrames,
               interval,
             });
 
@@ -162,10 +179,10 @@ Your task is to analyze the provided content and generate ONE perfect caption th
             // Handle video from Drive - extract frames
             try {
               const duration = await getVideoDuration(buffer, fileName);
-              const interval = getFrameInterval(duration, 4);
+              const { maxFrames, interval } = getFrameExtractionSettings(duration);
 
               const frames = await extractVideoFrames(buffer, fileName, {
-                maxFrames: 4,
+                maxFrames,
                 interval,
               });
 
@@ -230,7 +247,27 @@ Your task is to analyze the provided content and generate ONE perfect caption th
       throw new Error("No caption generated");
     }
 
-    return NextResponse.json({ caption: generatedCaption });
+    // Record usage after successful generation
+    const tokensUsed = completion.usage;
+    if (tokensUsed) {
+      const cost = calculateCost(tokensUsed.prompt_tokens, tokensUsed.completion_tokens);
+      await recordUsage(cost);
+    } else {
+      // Fallback to average cost if token info unavailable
+      await recordUsage();
+    }
+
+    // Get updated usage info to return to user
+    const updatedUsageCheck = await checkUsageLimit();
+
+    return NextResponse.json({
+      caption: generatedCaption,
+      usageWarning: updatedUsageCheck.warningMessage,
+      usageInfo: {
+        percentUsed: Math.round(updatedUsageCheck.percentUsed),
+        remainingCost: updatedUsageCheck.remainingCost.toFixed(2),
+      },
+    });
   } catch (error: any) {
     console.error("Error generating caption:", error);
 
