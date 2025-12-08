@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import captionStyleJson from "@/data/caption-style.json";
 import { extractFileId, downloadDriveFile } from "@/lib/tools/googleDrive";
+import { isGeminiConfigured } from "@/lib/tools/geminiVideo";
 import { checkUsageLimit, recordUsage, calculateCost } from "@/lib/usage/tracker";
 
 const openai = new OpenAI({
@@ -122,10 +123,10 @@ Your task is to analyze the provided content and generate ONE perfect caption th
           const mimeType = getImageMimeType(file);
           imagesToProcess.push({ base64, mimeType });
         } else if (file.type.startsWith("video/")) {
-          // Skip video processing due to serverless payload size limits
-          // Videos larger than 4.5MB cause FUNCTION_PAYLOAD_TOO_LARGE errors
-          userPrompt += `\nNote: Video file "${file.name}" detected. Please describe the video content in the "Content Name / Idea" field for best caption results.\n`;
-          console.log("Video processing skipped - serverless payload size limits");
+          // Accept video but skip AI processing to avoid serverless payload limits
+          // Videos cause FUNCTION_PAYLOAD_TOO_LARGE errors when sent through API
+          userPrompt += `\nVideo file "${file.name}" uploaded. For best results, describe the video content in the "Content Name / Idea" field.\n`;
+          console.log(`Video file accepted: ${file.name}, processing skipped due to serverless constraints`);
         }
       }
     }
@@ -155,9 +156,9 @@ Your task is to analyze the provided content and generate ONE perfect caption th
             });
             userPrompt += `\nProcessed image from Drive: ${fileName}\n`;
           } else if (mimeType.startsWith("video/")) {
-            // Skip video processing due to serverless payload size limits
-            userPrompt += `\nNote: Video file "${fileName}" from Drive detected. Please describe the video content in the "Content Name / Idea" field for best caption results.\n`;
-            console.log("Video processing skipped for Drive file - serverless payload size limits");
+            // Accept video from Drive but skip processing to avoid payload limits
+            userPrompt += `\nVideo file "${fileName}" from Google Drive uploaded. For best results, describe the video content in the "Content Name / Idea" field.\n`;
+            console.log(`Video from Drive accepted: ${fileName}, processing skipped due to serverless constraints`);
           } else {
             userPrompt += `\nNote: Unsupported file type from Drive: ${fileName} (${mimeType})\n`;
           }
