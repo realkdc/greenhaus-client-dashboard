@@ -18,10 +18,34 @@ export default function CaptionGeneratorPage(): JSX.Element {
     percentUsed: number;
     remainingCost: string;
   } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setFiles(e.target.files);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles && droppedFiles.length > 0) {
+      setFiles(droppedFiles);
     }
   };
 
@@ -53,6 +77,14 @@ export default function CaptionGeneratorPage(): JSX.Element {
         method: "POST",
         body: formData,
       });
+
+      // Check if response is JSON before parsing
+      const responseContentType = response.headers.get("content-type");
+      if (!responseContentType || !responseContentType.includes("application/json")) {
+        const text = await response.text();
+        console.error("Non-JSON response:", text);
+        throw new Error("Server error. Please try again later.");
+      }
 
       const data = await response.json();
 
@@ -137,9 +169,19 @@ export default function CaptionGeneratorPage(): JSX.Element {
                   supported)
                 </p>
                 <div className="mt-3">
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed px-6 py-8 transition ${
+                      isDragging
+                        ? "border-accent bg-accent/10"
+                        : "border-slate-300 bg-slate-50 hover:border-accent hover:bg-accent/5"
+                    }`}
+                  >
                   <label
                     htmlFor="file-upload"
-                    className="flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 transition hover:border-accent hover:bg-accent/5"
+                    className="flex w-full cursor-pointer items-center justify-center"
                   >
                     <div className="text-center">
                       <svg
@@ -171,6 +213,7 @@ export default function CaptionGeneratorPage(): JSX.Element {
                       className="sr-only"
                     />
                   </label>
+                  </div>
                   {files && files.length > 0 && (
                     <div className="mt-3 space-y-2">
                       {Array.from(files).map((file, index) => (
