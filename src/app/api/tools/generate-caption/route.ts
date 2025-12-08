@@ -15,13 +15,20 @@ async function fileToBase64(file: File): Promise<string> {
 
 // Helper to get image MIME type
 function getImageMimeType(file: File): string {
-  // Use the File object's type property, which the browser provides correctly
-  // This is more reliable than inferring from filename extensions
-  if (file.type && file.type.startsWith("image/")) {
-    return file.type;
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "png":
+      return "image/png";
+    case "gif":
+      return "image/gif";
+    case "webp":
+      return "image/webp";
+    default:
+      return "image/jpeg";
   }
-  // Fallback to jpeg if type is missing or invalid (shouldn't happen after filtering)
-  return "image/jpeg";
 }
 
 export async function POST(request: NextRequest) {
