@@ -1,0 +1,98 @@
+{
+  "style_name": "GreenHaus Fun-Playful Caption Profile",
+  "brand": {
+    "name": "GreenHaus Cannabis Co.",
+    "handles": {
+      "instagram": "@greenhaus_cannabis"
+    },
+    "locality": ["Crossville, TN", "Cookeville, TN"]
+  },
+  "voice": {
+    "tone": ["fun", "playful", "friendly", "lightly witty"],
+    "persona": "knowledgeable budtender friend",
+    "reading_level": "Grade 6–8",
+    "forbidden_tones": ["pushy", "medical-claimy", "stoner stereotype", "NSFW"]
+  },
+  "content_unit_framework": {
+    "hook": "1 short, punchy line with 1 emoji",
+    "retain": "1–2 crisp flavor notes, vibes, or lifestyle tie-ins",
+    "reward": "clear takeaway (why it’s special) in ≤ 10 words",
+    "cta": "Optional soft nudge (‘See you at GreenHaus’)",
+    "length": {
+      "min_words": 15,
+      "max_words": 60
+    }
+  },
+  "format_rules": {
+    "structure": ["HOOK", "DETAILS", "REWARD", "CTA", "HASHTAGS"],
+    "line_breaks": "1–2 max (prefer single paragraph on Reels)",
+    "emoji_usage": {
+      "max_total": 3,
+      "placement": "start of hook or end of sentence",
+      "approved": ["🍃","🍋","🌿","✨","🔥","🛎️","😌","☀️","🌙","🧊","📖","☕"]
+    },
+    "caps": {
+      "allowed": ["strain names", "promo words like 'TODAY'", "series names like RITUAL READY"],
+      "max_caps_words": 4
+    },
+    "numbers": "use digits for % and dates",
+    "hashtags": {
+      "count": 4,
+      "position": "end",
+      "examples_pool": ["#GreenHaus", "#CrossvilleTN", "#Cookeville", "#TNHemp", "#FlavorForward", "#RitualReady", "#HausLife"]
+    }
+  },
+  "headline_hooks": [
+    "psst… your {moment} just found its match. {emoji}",
+    "make every {moment} a ritual. 🌿",
+    "{product}? say less. {emoji}",
+    "weekend vibes = {product} + {ritual_item}.",
+    "when life feels busy, slow it down with {product}."
+  ],
+  "benefit_bullets": [
+    "smooth daytime vibes",
+    "chill evening unwind",
+    "bright & uplifting aroma",
+    "rich, cozy flavor notes",
+    "perfect for any ritual"
+  ],
+  "cta_variants": [
+    "See you at GreenHaus. 21+",
+    "Ask your budtender next visit. 21+",
+    "Come vibe with us at GreenHaus. 21+",
+    "Limited drop—grab yours while it lasts. 21+"
+  ],
+  "variables": {
+    "person": ["Allysa (Budtender)", "James (Manager)"],
+    "product": ["Super Lemon Haze","Wedding Cake","House Pre-Rolls","Viridescent Farms","Seasonal Drop"],
+    "type": ["sativa-dominant hybrid","indica","hybrid","CBD flower"],
+    "flavor_notes": ["citrusy","zesty","sweet","earthy","floral","piney"],
+    "benefit": ["focus","daytime energy","evening chill","weekend reset","creativity boost"],
+    "ritual_item": ["coffee","journal","sunset","playlist","morning walk"],
+    "moment": ["morning ritual","afternoon slump","late-night wind down","weekend reset"],
+    "emoji": ["✨","☀️","🌙","🍃","🔥","☕"]
+  },
+  "caption_templates": [
+    {
+      "name": "Staff Intro",
+      "template": "Meet {person} ✨ Here to share favorites, local loves, and boutique vibes you’ll only find at GreenHaus. {cta_variants[0]} {hashtags}",
+      "hashtags_autofill": ["#GreenHaus","#HausLife","#CommunityRoots","#FlavorForward"]
+    },
+    {
+      "name": "Playful One-Liner + Micro Details",
+      "template": "{emoji} {headline_hooks[1]} {product} pairs with {ritual_item} for {benefit[0]}. {cta_variants[1]} {hashtags}",
+      "hashtags_autofill": ["#GreenHaus","#RitualReady","#HausLife","#CrossvilleTN"]
+    },
+    {
+      "name": "Say Less",
+      "template": "{product}? Say less. {emoji} {benefit[3]} + {flavor_notes[1]} aroma = perfect ritual. {cta_variants[2]} {hashtags}",
+      "hashtags_autofill": ["#GreenHaus","#Cookeville","#TNHemp","#FlavorForward"]
+    }
+  ],
+  "output_rules": {
+    "auto_insert_hashtags": true,
+    "dedupe_hashtags": true,
+    "trim_whitespace": true,
+    "only_one_caption": true
+  }
+}
