@@ -132,9 +132,9 @@ Keep the description concise but informative, focusing on elements that would be
 
     // Extract caption from the response
     // Look for patterns like "A relevant Instagram caption for..." or similar
-    const captionMatch = text.match(/A relevant Instagram caption[^:]*:\s*(.+?)(?:\n\n|\n$|$)/is) ||
-                        text.match(/Instagram caption[^:]*:\s*(.+?)(?:\n\n|\n$|$)/is) ||
-                        text.match(/caption[^:]*:\s*(.+?)(?:\n\n|\n$|$)/is);
+    const captionMatch = text.match(/A relevant Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n$|$)/i) ||
+                        text.match(/Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n$|$)/i) ||
+                        text.match(/caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n$|$)/i);
     
     let caption = captionMatch ? captionMatch[1].trim() : "";
     
@@ -232,9 +232,9 @@ Keep the description concise but informative, focusing on elements that would be
     }
 
     // Extract caption from the response
-    const captionMatch = text.match(/A relevant Instagram caption[^:]*:\s*(.+?)(?:\n\n|\n$|$)/is) ||
-                        text.match(/Instagram caption[^:]*:\s*(.+?)(?:\n\n|\n$|$)/is) ||
-                        text.match(/caption[^:]*:\s*(.+?)(?:\n\n|\n$|$)/is);
+    const captionMatch = text.match(/A relevant Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n$|$)/i) ||
+                        text.match(/Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n$|$)/i) ||
+                        text.match(/caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n$|$)/i);
     
     let caption = captionMatch ? captionMatch[1].trim() : "";
     
