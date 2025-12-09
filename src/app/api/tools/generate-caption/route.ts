@@ -119,18 +119,28 @@ export async function POST(request: NextRequest) {
 BRAND VOICE & STYLE:
 ${JSON.stringify(captionStyleJson, null, 2)}
 
-IMPORTANT RULES:
-1. Follow the brand voice exactly: ${captionStyleJson.voice.tone.join(", ")}
-2. Keep captions between ${captionStyleJson.content_unit_framework.length.min_words} and ${captionStyleJson.content_unit_framework.length.max_words} words
-3. Use ONLY approved emojis: ${captionStyleJson.format_rules.emoji_usage.approved.join(" ")}
-4. Maximum ${captionStyleJson.format_rules.emoji_usage.max_total} emojis total
-5. Use the EXACT structure: Hook → Details → Reward → CTA → Hashtags → "21+"
-6. The CTA (call to action) comes BEFORE the hashtags, then end with "21+"
-7. Include exactly ${captionStyleJson.format_rules.hashtags.count} hashtags AFTER the CTA
-8. Keep it conversational and friendly, like a knowledgeable budtender friend
-9. CRITICAL: NEVER use em dashes (—). Use commas, periods, or regular hyphens (-) instead. If you use an em dash, the caption is WRONG.
+CRITICAL INSTRUCTIONS - YOU MUST USE THE JSON DATA TO CONSTRUCT THE CAPTION:
+1. **CTA Selection**: You MUST randomly select ONE CTA from the "cta_variants" array in the JSON. DO NOT use the same CTA every time. The available CTAs are:
+   ${captionStyleJson.cta_variants.map((cta: string, i: number) => `${i + 1}. "${cta}"`).join('\n   ')}
+   Vary which CTA you use - rotate through them randomly.
 
-Your task is to analyze the provided content and generate ONE perfect caption that follows all these guidelines.`;
+2. **Hook Construction**: Use the "headline_hooks" array as templates, but adapt them creatively based on the actual content. Don't just copy them verbatim.
+
+3. **Variable Usage**: Use elements from the "variables" object (product, flavor_notes, benefit, moment, ritual_item, emoji) to fill in the hooks and details naturally.
+
+4. **Hashtag Selection**: Select exactly ${captionStyleJson.format_rules.hashtags.count} hashtags from the "examples_pool" in the JSON. Vary which hashtags you use.
+
+5. **Structure**: Hook → Details → Reward → CTA → Hashtags → "21+"
+
+OTHER IMPORTANT RULES:
+- Follow the brand voice exactly: ${captionStyleJson.voice.tone.join(", ")}
+- Keep captions between ${captionStyleJson.content_unit_framework.length.min_words} and ${captionStyleJson.content_unit_framework.length.max_words} words
+- Use ONLY approved emojis: ${captionStyleJson.format_rules.emoji_usage.approved.join(" ")}
+- Maximum ${captionStyleJson.format_rules.emoji_usage.max_total} emojis total
+- Keep it conversational and friendly, like a knowledgeable budtender friend
+- CRITICAL: NEVER use em dashes (—). Use commas, periods, or regular hyphens (-) instead.
+
+Your task is to USE THE JSON DATA to CONSTRUCT a unique caption, not just follow it as inspiration. Actively select from the arrays and use the variables to build the caption.`;
 
     // Build the user prompt
     let userPrompt = `Generate a ${platform} caption for this content:\n\n`;
@@ -220,15 +230,21 @@ Your task is to analyze the provided content and generate ONE perfect caption th
       userPrompt += `\n\nIMPORTANT: ${finalImageUrls.length} image(s) are provided above. You MUST carefully analyze these actual images to understand what's in them. The caption must be based on what you SEE in the images, not just the text description.`;
     }
 
-    userPrompt += "\n\nCRITICAL FORMATTING REQUIREMENTS:";
+    userPrompt += "\n\nCRITICAL CONSTRUCTION REQUIREMENTS:";
     userPrompt += "\n1. Structure MUST be: Hook → Details → Reward → CTA → Hashtags → 21+";
-    userPrompt += "\n2. CTA comes BEFORE hashtags (e.g., 'Come vibe with us at GreenHaus. 21+' THEN hashtags)";
-    userPrompt += "\n3. NEVER use em dashes (—). Use commas, periods, or regular hyphens (-) instead.";
+    userPrompt += "\n2. CTA Selection: You MUST randomly select ONE CTA from the cta_variants array in the JSON. DO NOT use the same CTA repeatedly. Available CTAs:";
+    captionStyleJson.cta_variants.forEach((cta: string, i: number) => {
+      userPrompt += `\n   ${i + 1}. "${cta}"`;
+    });
+    userPrompt += "\n3. Hashtag Selection: Select exactly 4 hashtags from the examples_pool in the JSON. Vary which ones you use.";
+    userPrompt += "\n4. Hook Construction: Use headline_hooks as inspiration but adapt them creatively based on the actual content.";
+    userPrompt += "\n5. NEVER use em dashes (—). Use commas, periods, or regular hyphens (-) instead.";
     userPrompt += "\n\nCONTENT REQUIREMENTS:";
     userPrompt += "\n- Create a UNIQUE and CREATIVE caption tailored specifically to THIS content";
     userPrompt += "\n- Avoid repetitive opening phrases like 'psst... your weekend reset'";
     userPrompt += "\n- Vary your approach - use different hooks, angles, and creative openings";
     userPrompt += "\n- Base the caption on what you ACTUALLY see in the provided images - analyze them carefully";
+    userPrompt += "\n- ACTIVELY USE the JSON data to construct the caption - select from arrays, use variables, don't just follow it as style guidance";
 
     // Update the text content
     messages[1].content[0].text = userPrompt;
