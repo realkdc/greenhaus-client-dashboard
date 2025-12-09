@@ -124,11 +124,11 @@ IMPORTANT RULES:
 2. Keep captions between ${captionStyleJson.content_unit_framework.length.min_words} and ${captionStyleJson.content_unit_framework.length.max_words} words
 3. Use ONLY approved emojis: ${captionStyleJson.format_rules.emoji_usage.approved.join(" ")}
 4. Maximum ${captionStyleJson.format_rules.emoji_usage.max_total} emojis total
-5. Include exactly ${captionStyleJson.format_rules.hashtags.count} hashtags at the end
-6. Always end with "21+" for age compliance
-7. Use the Hook → Details → Reward → CTA structure
+5. Use the EXACT structure: Hook → Details → Reward → CTA → Hashtags → "21+"
+6. The CTA (call to action) comes BEFORE the hashtags, then end with "21+"
+7. Include exactly ${captionStyleJson.format_rules.hashtags.count} hashtags AFTER the CTA
 8. Keep it conversational and friendly, like a knowledgeable budtender friend
-9. NEVER use em dashes (—). Use commas, periods, or regular hyphens (-) instead
+9. CRITICAL: NEVER use em dashes (—). Use commas, periods, or regular hyphens (-) instead. If you use an em dash, the caption is WRONG.
 
 Your task is to analyze the provided content and generate ONE perfect caption that follows all these guidelines.`;
 
@@ -213,11 +213,14 @@ Your task is to analyze the provided content and generate ONE perfect caption th
       userPrompt += `\nNo visual content was successfully processed. Please create a caption based on the description provided.\n`;
     }
 
-    userPrompt += "\n\nIMPORTANT: Create a UNIQUE and CREATIVE caption that follows the GreenHaus brand guidelines perfectly. ";
-    userPrompt += "Avoid using repetitive opening phrases like 'psst... your weekend reset' or similar patterns. ";
-    userPrompt += "Each caption should be fresh, original, and tailored specifically to THIS content. ";
-    userPrompt += "Vary your approach - use different hooks, angles, and creative openings for each caption. ";
-    userPrompt += "NEVER use em dashes (—). Use commas, periods, or regular hyphens (-) instead.";
+    userPrompt += "\n\nCRITICAL FORMATTING REQUIREMENTS:";
+    userPrompt += "\n1. Structure MUST be: Hook → Details → Reward → CTA → Hashtags → 21+";
+    userPrompt += "\n2. CTA comes BEFORE hashtags (e.g., 'Come vibe with us at GreenHaus. 21+' THEN hashtags)";
+    userPrompt += "\n3. NEVER use em dashes (—). Use commas, periods, or regular hyphens (-) instead.";
+    userPrompt += "\n\nCONTENT REQUIREMENTS:";
+    userPrompt += "\n- Create a UNIQUE and CREATIVE caption tailored specifically to THIS content";
+    userPrompt += "\n- Avoid repetitive opening phrases like 'psst... your weekend reset'";
+    userPrompt += "\n- Vary your approach - use different hooks, angles, and creative openings";
 
     // Update the text content
     messages[1].content[0].text = userPrompt;
