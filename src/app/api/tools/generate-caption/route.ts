@@ -65,6 +65,9 @@ export async function POST(request: NextRequest) {
     
     // Track Gemini analyses to return to user
     const videoAnalyses: Array<{ fileName: string; analysis: string; source: string }> = [];
+    
+    // Track errors for better user feedback
+    const driveErrors: string[] = [];
 
     // Process Google Drive links
     if (googleDriveLinks) {
@@ -73,15 +76,21 @@ export async function POST(request: NextRequest) {
         .map((link) => link.trim())
         .filter((link) => link.length > 0);
 
+      console.log(`[Caption Generator] Processing ${links.length} Google Drive link(s)...`);
+
       for (const link of links) {
         try {
           const fileId = extractFileId(link);
           if (!fileId) {
-            console.log(`[Caption Generator] Invalid Google Drive link: ${link}`);
+            const errorMsg = `Invalid Google Drive link format: ${link}`;
+            console.log(`[Caption Generator] ${errorMsg}`);
+            driveErrors.push(errorMsg);
             continue;
           }
 
+          console.log(`[Caption Generator] Downloading Google Drive file: ${fileId}`);
           const { buffer, mimeType, fileName } = await downloadDriveFile(fileId);
+          console.log(`[Caption Generator] Successfully downloaded: ${fileName} (${mimeType})`);
 
           if (mimeType.startsWith("image/")) {
             // Store image buffer for Gemini processing
@@ -92,22 +101,32 @@ export async function POST(request: NextRequest) {
             videoBuffers.push({ buffer, mimeType, fileName, source: 'Google Drive' });
             console.log(`[Caption Generator] Added Google Drive video: ${fileName}`);
           } else {
-            console.log(`[Caption Generator] Unsupported file type from Drive: ${fileName} (${mimeType})`);
+            const errorMsg = `Unsupported file type: ${fileName} (${mimeType}). Only images and videos are supported.`;
+            console.log(`[Caption Generator] ${errorMsg}`);
+            driveErrors.push(errorMsg);
           }
         } catch (error: any) {
-          console.error("Error downloading from Drive:", error);
+          console.error(`[Caption Generator] Error downloading from Drive (${link}):`, error);
           const errorMessage = error?.message || "Unknown error";
           
-          // Log error messages for debugging
+          // Build user-friendly error message
+          let userErrorMsg = "";
           if (errorMessage.includes("invalid_grant") || errorMessage.includes("account not found")) {
+            userErrorMsg = `Google Drive authentication error. Please check that GOOGLE_DRIVE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY (or GOOGLE_DRIVE_PRIVATE_KEY) are correctly configured in Vercel environment variables.`;
             console.error(`[Caption Generator] Google Drive authentication error for ${link}: ${errorMessage}`);
-          } else if (errorMessage.includes("permission") || errorMessage.includes("access")) {
-            console.error(`[Caption Generator] Could not access file from Google Drive link: ${link}. The file may not be shared with the service account or the link may be invalid.`);
+          } else if (errorMessage.includes("permission") || errorMessage.includes("access") || errorMessage.includes("404")) {
+            userErrorMsg = `Could not access file from Google Drive link. Make sure the file is shared with "Anyone with the link can view" and the link is correct.`;
+            console.error(`[Caption Generator] Access error for ${link}: ${errorMessage}`);
           } else {
-            console.error(`[Caption Generator] Could not access file from link: ${link}. ${errorMessage}`);
+            userErrorMsg = `Failed to download file from Google Drive: ${errorMessage}`;
+            console.error(`[Caption Generator] Download error for ${link}: ${errorMessage}`);
           }
+          
+          driveErrors.push(userErrorMsg);
         }
       }
+      
+      console.log(`[Caption Generator] Google Drive processing complete: ${imageBuffers.length} images, ${videoBuffers.length} videos, ${driveErrors.length} errors`);
     }
 
     // Process uploaded image URLs - download them to buffers
@@ -222,10 +241,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // If no content was provided, return error
+    // If no content was provided, return error with details
     if (imageBuffers.length === 0 && videoBuffers.length === 0) {
+      let errorMessage = "No images or videos were successfully processed.";
+      
+      if (driveErrors.length > 0) {
+        errorMessage += "\n\nGoogle Drive errors:\n" + driveErrors.map((err, i) => `${i + 1}. ${err}`).join("\n");
+      }
+      
+      if (googleDriveLinks && googleDriveLinks.trim()) {
+        errorMessage += "\n\nPlease check:\n- The file is shared with 'Anyone with the link can view'\n- The link is correct and not expired\n- The file is an image or video (not a document or folder)";
+      }
+      
+      console.error(`[Caption Generator] No content processed. Errors: ${JSON.stringify(driveErrors)}`);
+      console.error(`[Caption Generator] Image buffers: ${imageBuffers.length}, Video buffers: ${videoBuffers.length}, Upload URLs: ${finalImageUrls.length}`);
+      
       return NextResponse.json(
-        { error: "No images or videos were successfully processed. Please check your uploads or Google Drive links." },
+        { error: errorMessage },
         { status: 400 }
       );
     }
