@@ -15,11 +15,11 @@ async function fileToBase64(file: File): Promise<string> {
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
 
-  // Compress images to reduce payload size (Vercel has 4.5MB limit)
-  // Resize to max 800px width and compress to 80% quality
+  // AGGRESSIVE compression to stay under 4.5MB Vercel limit
+  // Resize to 512px max width and 60% quality - each image ~50-100KB
   const compressed = await sharp(buffer)
-    .resize(800, null, { withoutEnlargement: true })
-    .jpeg({ quality: 80 })
+    .resize(512, null, { withoutEnlargement: true })
+    .jpeg({ quality: 60 })
     .toBuffer();
 
   return compressed.toString("base64");
@@ -29,10 +29,10 @@ async function fileToBase64(file: File): Promise<string> {
 async function bufferToBase64(buffer: Buffer): Promise<string> {
   const sharp = require('sharp');
 
-  // Compress images from Google Drive too
+  // AGGRESSIVE compression for Drive images too
   const compressed = await sharp(buffer)
-    .resize(800, null, { withoutEnlargement: true })
-    .jpeg({ quality: 80 })
+    .resize(512, null, { withoutEnlargement: true })
+    .jpeg({ quality: 60 })
     .toBuffer();
 
   return compressed.toString("base64");
