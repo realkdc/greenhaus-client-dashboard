@@ -5,10 +5,10 @@ import { Readable } from "stream";
 function formatPrivateKey(key: string | undefined): string | undefined {
   if (!key) return undefined;
   
-  // Handle literal \n strings (common in env vars)
+  // 1. Handle literal \n strings (common in env vars)
   let formattedKey = key.replace(/\\n/g, "\n");
   
-  // Remove any surrounding quotes that might have been pasted
+  // 2. Remove any surrounding quotes
   if (formattedKey.startsWith('"') && formattedKey.endsWith('"')) {
     formattedKey = formattedKey.slice(1, -1);
   }
@@ -16,7 +16,30 @@ function formatPrivateKey(key: string | undefined): string | undefined {
     formattedKey = formattedKey.slice(1, -1);
   }
 
-  return formattedKey;
+  // 3. Fix keys that might be single-line (spaces instead of newlines)
+  // This often happens when copying from some terminals or UIs
+  if (!formattedKey.includes("\n")) {
+    const beginHeader = "-----BEGIN PRIVATE KEY-----";
+    const endHeader = "-----END PRIVATE KEY-----";
+    
+    if (formattedKey.includes(beginHeader) && formattedKey.includes(endHeader)) {
+      // It's a one-line key. We need to try to re-format it.
+      // Strategy: Extract the body, and assume it's valid base64, then wrap.
+      // But simpler strategy: just ensure headers have newlines.
+      formattedKey = formattedKey
+        .replace(beginHeader, beginHeader + "\n")
+        .replace(endHeader, "\n" + endHeader);
+        
+      // The body might still be one long line, but PEM parsers often handle that 
+      // as long as headers are separated. 
+      // If it still fails, we might need to chunk the body, but that's risky if we break it wrong.
+      // Let's replace spaces in the body with newlines? No, risky.
+      // Usually the issue is just the headers.
+      console.log("[Google Drive] Detected single-line key, attempted to add newlines around headers.");
+    }
+  }
+
+  return formattedKey.trim();
 }
 
 // Initialize Google Drive API with service account
@@ -25,14 +48,17 @@ function getDriveClient() {
   const rawPrivateKey = process.env.GOOGLE_DRIVE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY;
   const privateKey = formatPrivateKey(rawPrivateKey);
 
-  // Debug logging (safe)
+  // Debug logging
   if (!privateKey) {
     console.error("[Google Drive] Missing private key");
-  } else if (process.env.NODE_ENV !== 'production') {
-    // Only log key details in non-production or if strictly needed for debugging
+  } else if (process.env.NODE_ENV !== 'production' || true) { // Force log in prod for now to debug
     const keyLength = privateKey.length;
+    const hasNewlines = privateKey.includes("\n");
+    const hasBegin = privateKey.includes("-----BEGIN PRIVATE KEY-----");
+    const hasEnd = privateKey.includes("-----END PRIVATE KEY-----");
     const firstLine = privateKey.split('\n')[0];
-    console.log(`[Google Drive] Initializing client. Email: ${clientEmail ? 'Set' : 'Missing'}, Key length: ${keyLength}, Header: ${firstLine}`);
+    
+    console.log(`[Google Drive] Key check - Length: ${keyLength}, Newlines: ${hasNewlines}, Header: ${hasBegin}, Footer: ${hasEnd}, Start: ${firstLine.substring(0, 30)}...`);
   }
 
   const auth = new google.auth.GoogleAuth({
