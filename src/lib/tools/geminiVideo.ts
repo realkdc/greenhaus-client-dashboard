@@ -129,72 +129,49 @@ Keep the description concise but informative, focusing on elements that would be
     if (!text) {
       throw new Error("No analysis generated from images");
     }
+    
+    // Log raw text for debugging
+    console.log(`[Gemini Raw Image Analysis]: ${text.substring(0, 200)}...`);
 
     // Extract caption from the response
-    // Look for patterns like "A relevant Instagram caption for..." or similar
-    // Try multiple patterns to catch different formatting styles
     let caption = "";
     
-    // Pattern 1: "A relevant Instagram caption for..." or "Instagram caption:"
-    const pattern1 = text.match(/A relevant Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n(?=\d+\.)|$)/i);
-    if (pattern1 && pattern1[1]) {
-      caption = pattern1[1].trim();
+    // Strategy 1: Explicit markers (most reliable)
+    // Matches: "Instagram caption: ..." or "Caption: ..."
+    const markerRegex = /(?:Instagram caption|Caption|Relevant caption)[^:]*:\s*([\s\S]+)/i;
+    const match = text.match(markerRegex);
+    if (match && match[1]) {
+        caption = match[1].trim();
     }
     
-    // Pattern 2: "Instagram caption:" (simpler)
+    // Strategy 2: If no marker, look for the last paragraph if the text is long
     if (!caption || caption.length < 10) {
-      const pattern2 = text.match(/Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n(?=\d+\.)|$)/i);
-      if (pattern2 && pattern2[1]) {
-        caption = pattern2[1].trim();
-      }
-    }
-    
-    // Pattern 3: Look for quoted caption (might be in quotes)
-    if (!caption || caption.length < 10) {
-      const pattern3 = text.match(/caption[^:]*:\s*["']?([\s\S]+?)["']?(?:\n\n|\n(?=\d+\.)|$)/i);
-      if (pattern3 && pattern3[1]) {
-        caption = pattern3[1].trim();
-      }
-    }
-    
-    // Strip markdown formatting if present (**text** becomes text)
-    if (caption) {
-      caption = caption.replace(/\*\*([^*]+)\*\*/g, '$1'); // Remove **bold**
-      caption = caption.replace(/\*([^*]+)\*/g, '$1'); // Remove *italic*
-      caption = caption.replace(/^["']|["']$/g, ''); // Remove surrounding quotes
-      caption = caption.trim();
-    }
-    
-    // If still no good caption, try to extract the last paragraph
-    if (!caption || caption.length < 10) {
-      const paragraphs = text.split(/\n\n+/);
-      // Look for the last substantial paragraph (likely the caption)
-      for (let i = paragraphs.length - 1; i >= 0; i--) {
-        const para = paragraphs[i].trim();
-        // Skip if it's too short, too long, or looks like a section header
-        if (para.length > 20 && para.length < 500 && !para.match(/^\d+\./)) {
-          caption = para;
-          break;
+        const paragraphs = text.split(/\n\n+/);
+        if (paragraphs.length > 1) {
+            caption = paragraphs[paragraphs.length - 1].trim();
         }
-      }
+    }
+    
+    // Strategy 3: Fallback to full text if it's short (likely just the caption)
+    if (!caption || caption.length < 10) {
+        caption = text.trim();
     }
 
-    // If still no caption, use the full text (fallback)
-    if (!caption || caption.length < 10) {
-      caption = text.trim();
-    }
+    // Cleanup: Remove quotes and markdown block symbols
+    caption = caption.replace(/^["']|["']$/g, '');
+    caption = caption.replace(/\*\*([^*]+)\*\*/g, '$1'); // bold
+    caption = caption.replace(/\*([^*]+)\*/g, '$1');     // italic
     
+    // Cleanup: Remove "Here is a caption..." prefixes if captured
+    caption = caption.replace(/^(Here is|I've created|Here's) a .*caption.*:?/i, '').trim();
+
     // Final cleanup
     caption = caption.trim();
     
-    // Remove any leading/trailing markdown or formatting
-    caption = caption.replace(/^[\*\#\-\s]+|[\*\#\-\s]+$/g, '');
-    
-    // Fix Instagram handle if it's wrong
+    // Fix Instagram handle
     caption = caption.replace(/@GreenhausCannabis/gi, '@greenhaus_cannabis');
     
-    // Log for debugging
-    console.log(`[Gemini] Extracted caption length: ${caption.length}, preview: ${caption.substring(0, 50)}...`);
+    console.log(`[Gemini] Extracted caption length: ${caption.length}`);
 
     return {
       analysis: text,
@@ -272,70 +249,43 @@ Keep the description concise but informative, focusing on elements that would be
       throw new Error("No analysis generated from video");
     }
 
+    // Log raw text for debugging
+    console.log(`[Gemini Raw Video Analysis]: ${text.substring(0, 200)}...`);
+
     // Extract caption from the response
-    // Try multiple patterns to catch different formatting styles
     let caption = "";
     
-    // Pattern 1: "A relevant Instagram caption for..." or "Instagram caption:"
-    const pattern1 = text.match(/A relevant Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n(?=\d+\.)|$)/i);
-    if (pattern1 && pattern1[1]) {
-      caption = pattern1[1].trim();
+    // Strategy 1: Explicit markers
+    const markerRegex = /(?:Instagram caption|Caption|Relevant caption)[^:]*:\s*([\s\S]+)/i;
+    const match = text.match(markerRegex);
+    if (match && match[1]) {
+        caption = match[1].trim();
     }
     
-    // Pattern 2: "Instagram caption:" (simpler)
+    // Strategy 2: Last paragraph
     if (!caption || caption.length < 10) {
-      const pattern2 = text.match(/Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n(?=\d+\.)|$)/i);
-      if (pattern2 && pattern2[1]) {
-        caption = pattern2[1].trim();
-      }
-    }
-    
-    // Pattern 3: Look for quoted caption (might be in quotes)
-    if (!caption || caption.length < 10) {
-      const pattern3 = text.match(/caption[^:]*:\s*["']?([\s\S]+?)["']?(?:\n\n|\n(?=\d+\.)|$)/i);
-      if (pattern3 && pattern3[1]) {
-        caption = pattern3[1].trim();
-      }
-    }
-    
-    // Strip markdown formatting if present (**text** becomes text)
-    if (caption) {
-      caption = caption.replace(/\*\*([^*]+)\*\*/g, '$1'); // Remove **bold**
-      caption = caption.replace(/\*([^*]+)\*/g, '$1'); // Remove *italic*
-      caption = caption.replace(/^["']|["']$/g, ''); // Remove surrounding quotes
-      caption = caption.trim();
-    }
-    
-    // If still no good caption, try to extract the last paragraph
-    if (!caption || caption.length < 10) {
-      const paragraphs = text.split(/\n\n+/);
-      // Look for the last substantial paragraph (likely the caption)
-      for (let i = paragraphs.length - 1; i >= 0; i--) {
-        const para = paragraphs[i].trim();
-        // Skip if it's too short, too long, or looks like a section header
-        if (para.length > 20 && para.length < 500 && !para.match(/^\d+\./)) {
-          caption = para;
-          break;
+        const paragraphs = text.split(/\n\n+/);
+        if (paragraphs.length > 1) {
+            caption = paragraphs[paragraphs.length - 1].trim();
         }
-      }
+    }
+    
+    // Strategy 3: Full text fallback
+    if (!caption || caption.length < 10) {
+        caption = text.trim();
     }
 
-    // If still no caption, use the full text (fallback)
-    if (!caption || caption.length < 10) {
-      caption = text.trim();
-    }
-    
+    // Cleanup
+    caption = caption.replace(/^["']|["']$/g, '');
+    caption = caption.replace(/\*\*([^*]+)\*\*/g, '$1');
+    caption = caption.replace(/\*([^*]+)\*/g, '$1');
+    caption = caption.replace(/^(Here is|I've created|Here's) a .*caption.*:?/i, '').trim();
+
     // Final cleanup
     caption = caption.trim();
-    
-    // Remove any leading/trailing markdown or formatting
-    caption = caption.replace(/^[\*\#\-\s]+|[\*\#\-\s]+$/g, '');
-    
-    // Fix Instagram handle if it's wrong
     caption = caption.replace(/@GreenhausCannabis/gi, '@greenhaus_cannabis');
     
-    // Log for debugging
-    console.log(`[Gemini] Extracted caption length: ${caption.length}, preview: ${caption.substring(0, 50)}...`);
+    console.log(`[Gemini] Extracted video caption length: ${caption.length}`);
 
     return {
       analysis: text,
