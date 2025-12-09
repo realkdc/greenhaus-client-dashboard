@@ -70,32 +70,38 @@ export default function CaptionGeneratorPage(): JSX.Element {
           const totalFiles = imageFiles.length;
           let processedFiles = 0;
 
-          // Upload files via server-side endpoint (supports allowOverwrite)
-          setUploadProgress(10);
-          
-          const uploadFormData = new FormData();
-          imageFiles.forEach((file) => {
-            uploadFormData.append("files", file);
-          });
+          // Client-side direct upload to Vercel Blob - bypasses ALL payload limits
+          // Files upload directly from browser to Blob storage, no serverless function involved
+          for (const file of imageFiles) {
+            try {
+              setUploadProgress(Math.round((processedFiles / totalFiles) * 50));
+              
+              // Use consistent filename - overwrite is handled server-side in token generation
+              const fileName = `caption-images/${file.name}`;
+              
+              // Direct upload from browser to Vercel Blob - no size limits!
+              const newBlob = await upload(fileName, file, {
+                access: 'public',
+                handleUploadUrl: '/api/tools/upload-token',
+                // allowOverwrite is set server-side in the token generation
+              });
 
-          setUploadProgress(30);
-
-          const uploadResponse = await fetch("/api/tools/upload-images", {
-            method: "POST",
-            body: uploadFormData,
-          });
-
-          setUploadProgress(70);
-
-          if (!uploadResponse.ok) {
-            const errorData = await uploadResponse.json();
-            throw new Error(errorData.error || "Failed to upload images");
+              imageUrls.push(newBlob.url);
+              processedFiles++;
+              setUploadProgress(Math.round((processedFiles / totalFiles) * 90));
+            } catch (uploadError: any) {
+              console.error("Error uploading file:", uploadError);
+              
+              // Check if it's a token error
+              if (uploadError?.message?.includes('token') || uploadError?.message?.includes('BLOB_READ_WRITE_TOKEN')) {
+                throw new Error(
+                  'Blob storage is not configured. Please set BLOB_READ_WRITE_TOKEN in Vercel project settings under Environment Variables.'
+                );
+              }
+              
+              throw new Error(`Failed to upload ${file.name}: ${uploadError?.message || 'Unknown error'}`);
+            }
           }
-
-          const uploadData = await uploadResponse.json();
-          imageUrls.push(...(uploadData.urls || []));
-          
-          setUploadProgress(100);
           
           setUploadProgress(100);
         }

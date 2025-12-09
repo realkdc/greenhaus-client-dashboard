@@ -33,11 +33,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       request,
       onBeforeGenerateToken: async (pathname, clientPayload) => {
         // Generate a client token for the browser to upload the file
+        // allowOverwrite: true allows overwriting duplicate files to save storage space
         return {
           allowedContentTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime'],
           tokenPayload: JSON.stringify({
             // optional metadata
           }),
+          allowOverwrite: true, // Overwrite duplicates instead of creating new files
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
