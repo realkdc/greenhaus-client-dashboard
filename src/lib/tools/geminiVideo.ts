@@ -155,6 +155,15 @@ Keep the description concise but informative, focusing on elements that would be
         }
     }
 
+    // Strategy 2b: Look for "Suggested Instagram Caption" variants
+    if (!caption || caption.length < 10) {
+        const suggestedMatch = text.match(/\*{0,2}Suggested (Instagram )?Caption:?\*{0,2}\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
+        if (suggestedMatch && suggestedMatch[2]) {
+            caption = suggestedMatch[2].trim();
+            console.log('[Gemini] Strategy 2b matched: Suggested Caption');
+        }
+    }
+
     // Strategy 3: Look for just "Caption:"
     if (!caption || caption.length < 10) {
         const simpleCaptionMatch = text.match(/(?:^|\n)Caption:\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
@@ -201,6 +210,15 @@ Keep the description concise but informative, focusing on elements that would be
 
     // Final cleanup
     caption = caption.trim();
+    
+    // If we accidentally captured the analysis header, try to grab the suggested caption section instead
+    if (/^Image Analysis/i.test(caption)) {
+      const suggested = text.match(/Suggested (Instagram )?Caption:?\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
+      if (suggested && suggested[2]) {
+        caption = suggested[2].trim();
+        console.log('[Gemini] Cleanup fallback: removed Image Analysis block (images)');
+      }
+    }
 
     // Fix Instagram handle
     caption = caption.replace(/@GreenhausCannabis/gi, '@greenhaus_cannabis');
@@ -305,6 +323,15 @@ Keep the description concise but informative, focusing on elements that would be
         }
     }
 
+    // Strategy 2b: Look for "Suggested Instagram Caption" variants
+    if (!caption || caption.length < 10) {
+        const suggestedMatch = text.match(/\*{0,2}Suggested (Instagram )?Caption:?\*{0,2}\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
+        if (suggestedMatch && suggestedMatch[2]) {
+            caption = suggestedMatch[2].trim();
+            console.log('[Gemini] Strategy 2b matched: Suggested Caption');
+        }
+    }
+
     // Strategy 3: Look for just "Caption:"
     if (!caption || caption.length < 10) {
         const simpleCaptionMatch = text.match(/(?:^|\n)Caption:\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
@@ -356,6 +383,15 @@ Keep the description concise but informative, focusing on elements that would be
     // Final cleanup
     caption = caption.trim();
     caption = caption.replace(/@GreenhausCannabis/gi, '@greenhaus_cannabis');
+    
+    // If we accidentally captured the analysis header, try to grab the suggested caption section instead
+    if (/^Image Analysis/i.test(caption)) {
+      const suggested = text.match(/Suggested (Instagram )?Caption:?\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
+      if (suggested && suggested[2]) {
+        caption = suggested[2].trim();
+        console.log('[Gemini] Cleanup fallback: removed Image Analysis block (video)');
+      }
+    }
     
     console.log(`[Gemini] Extracted video caption length: ${caption.length}`);
 
