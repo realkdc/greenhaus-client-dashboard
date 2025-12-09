@@ -23,6 +23,7 @@ export default function CaptionGeneratorPage(): JSX.Element {
   } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [progressLog, setProgressLog] = useState<Array<{ message: string; timestamp: Date; type: 'info' | 'success' | 'error' | 'warning' }>>([]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -53,11 +54,17 @@ export default function CaptionGeneratorPage(): JSX.Element {
     }
   };
 
+  const addProgressLog = (message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
+    setProgressLog(prev => [...prev, { message, timestamp: new Date(), type }]);
+  };
+
   const handleGenerateCaption = async () => {
     setIsGenerating(true);
     setError("");
     setGeneratedCaption("");
     setUploadProgress(0);
+    setProgressLog([]);
+    addProgressLog("Starting caption generation...", "info");
 
     try {
       const imageUrls: string[] = [];
@@ -69,6 +76,7 @@ export default function CaptionGeneratorPage(): JSX.Element {
         );
 
         if (imageFiles.length > 0) {
+          addProgressLog(`Uploading ${imageFiles.length} file(s) to storage...`, "info");
           const totalFiles = imageFiles.length;
           let processedFiles = 0;
 
@@ -77,6 +85,7 @@ export default function CaptionGeneratorPage(): JSX.Element {
           for (const file of imageFiles) {
             try {
               setUploadProgress(Math.round((processedFiles / totalFiles) * 50));
+              addProgressLog(`Uploading ${file.name}...`, "info");
               
               // Use consistent filename - overwrite is handled server-side in token generation
               const fileName = `caption-images/${file.name}`;
@@ -91,8 +100,10 @@ export default function CaptionGeneratorPage(): JSX.Element {
               imageUrls.push(newBlob.url);
               processedFiles++;
               setUploadProgress(Math.round((processedFiles / totalFiles) * 90));
+              addProgressLog(`✓ Uploaded ${file.name}`, "success");
             } catch (uploadError: any) {
               console.error("Error uploading file:", uploadError);
+              addProgressLog(`✗ Failed to upload ${file.name}: ${uploadError?.message || 'Unknown error'}`, "error");
               
               // Check if it's a token error
               if (uploadError?.message?.includes('token') || uploadError?.message?.includes('BLOB_READ_WRITE_TOKEN')) {
@@ -106,9 +117,19 @@ export default function CaptionGeneratorPage(): JSX.Element {
           }
           
           setUploadProgress(100);
+          addProgressLog(`✓ All files uploaded successfully`, "success");
         }
       }
 
+      // Process Google Drive links
+      if (googleDriveLinks.trim()) {
+        const links = googleDriveLinks.trim().split(/[\n,]/).filter(l => l.trim());
+        if (links.length > 0) {
+          addProgressLog(`Processing ${links.length} Google Drive link(s)...`, "info");
+        }
+      }
+
+      addProgressLog("Sending request to caption generator...", "info");
       const response = await fetch("/api/tools/generate-caption", {
         method: "POST",
         headers: {
@@ -128,15 +149,27 @@ export default function CaptionGeneratorPage(): JSX.Element {
       if (!responseContentType || !responseContentType.includes("application/json")) {
         const text = await response.text();
         console.error("Non-JSON response:", text);
+        addProgressLog("✗ Server returned invalid response", "error");
         throw new Error("Server error. Please try again later.");
       }
 
+      addProgressLog("Processing response...", "info");
       const data = await response.json();
 
       if (!response.ok) {
+        addProgressLog(`✗ ${data.error || "Failed to generate caption"}`, "error");
         throw new Error(data.error || "Failed to generate caption");
       }
 
+      // Check for video analyses
+      if (data.videoAnalyses && data.videoAnalyses.length > 0) {
+        addProgressLog(`✓ Analyzed ${data.videoAnalyses.length} video(s) with Gemini`, "success");
+        data.videoAnalyses.forEach((analysis: any) => {
+          addProgressLog(`  → ${analysis.fileName} (${analysis.source})`, "info");
+        });
+      }
+
+      addProgressLog("✓ Caption generated successfully!", "success");
       setGeneratedCaption(data.caption);
       setVideoAnalyses(data.videoAnalyses || []);
       
@@ -161,6 +194,7 @@ export default function CaptionGeneratorPage(): JSX.Element {
       // Handle usage warnings
       if (data.usageWarning) {
         setUsageWarning(data.usageWarning);
+        addProgressLog(`⚠ ${data.usageWarning}`, "warning");
       }
 
       if (data.usageInfo) {
@@ -168,7 +202,9 @@ export default function CaptionGeneratorPage(): JSX.Element {
       }
     } catch (err) {
       console.error("Error generating caption:", err);
-      setError(err instanceof Error ? err.message : "Failed to generate caption");
+      const errorMessage = err instanceof Error ? err.message : "Failed to generate caption";
+      addProgressLog(`✗ ${errorMessage}`, "error");
+      setError(errorMessage);
     } finally {
       setIsGenerating(false);
       setUploadProgress(0);
@@ -505,6 +541,80 @@ export default function CaptionGeneratorPage(): JSX.Element {
                       <h3 className="text-sm font-semibold text-red-900">Error</h3>
                       <p className="mt-1 text-sm text-red-700">{error}</p>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Progress Log */}
+              {(isGenerating || progressLog.length > 0) && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      Progress Log
+                    </h3>
+                    {isGenerating && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                        <svg
+                          className="h-3 w-3 animate-spin"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        Processing...
+                      </span>
+                    )}
+                  </div>
+                  <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg bg-white p-4">
+                    {progressLog.length === 0 ? (
+                      <p className="text-sm text-slate-500">Waiting for updates...</p>
+                    ) : (
+                      progressLog.map((log, index) => {
+                        const iconColor = 
+                          log.type === 'success' ? 'text-green-600' :
+                          log.type === 'error' ? 'text-red-600' :
+                          log.type === 'warning' ? 'text-yellow-600' :
+                          'text-blue-600';
+                        
+                        const bgColor = 
+                          log.type === 'success' ? 'bg-green-50' :
+                          log.type === 'error' ? 'bg-red-50' :
+                          log.type === 'warning' ? 'bg-yellow-50' :
+                          'bg-blue-50';
+
+                        return (
+                          <div
+                            key={index}
+                            className={`flex items-start gap-2 rounded-lg p-2 ${bgColor} transition`}
+                          >
+                            <span className={`text-sm ${iconColor}`}>
+                              {log.type === 'success' && '✓'}
+                              {log.type === 'error' && '✗'}
+                              {log.type === 'warning' && '⚠'}
+                              {log.type === 'info' && '•'}
+                            </span>
+                            <span className="flex-1 text-sm text-slate-700">
+                              {log.message}
+                            </span>
+                            <span className="text-xs text-slate-400">
+                              {log.timestamp.toLocaleTimeString()}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               )}
