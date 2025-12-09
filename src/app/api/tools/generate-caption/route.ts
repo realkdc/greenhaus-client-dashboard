@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { put } from '@vercel/blob';
 import captionStyleJson from "@/data/caption-style.json";
 import { extractFileId, downloadDriveFile } from "@/lib/tools/googleDrive";
 import { isGeminiConfigured } from "@/lib/tools/geminiVideo";
@@ -9,33 +10,27 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Helper to convert files to base64 with compression
-async function fileToBase64(file: File): Promise<string> {
-  const sharp = require('sharp');
+// Helper to upload file to Vercel Blob and return URL
+async function uploadToBlob(file: File): Promise<string> {
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
 
-  // EXTREME compression to stay under 4.5MB Vercel limit
-  // Resize to 384px max width and 50% quality - each image ~30-50KB
-  const compressed = await sharp(buffer)
-    .resize(384, null, { withoutEnlargement: true })
-    .jpeg({ quality: 50 })
-    .toBuffer();
+  const blob = await put(file.name, buffer, {
+    access: 'public',
+    addRandomSuffix: true,
+  });
 
-  return compressed.toString("base64");
+  return blob.url;
 }
 
-// Helper to convert buffer to base64 with compression
-async function bufferToBase64(buffer: Buffer): Promise<string> {
-  const sharp = require('sharp');
+// Helper to upload buffer to Vercel Blob and return URL
+async function uploadBufferToBlob(buffer: Buffer, fileName: string): Promise<string> {
+  const blob = await put(fileName, buffer, {
+    access: 'public',
+    addRandomSuffix: true,
+  });
 
-  // EXTREME compression for Drive images too
-  const compressed = await sharp(buffer)
-    .resize(384, null, { withoutEnlargement: true })
-    .jpeg({ quality: 50 })
-    .toBuffer();
-
-  return compressed.toString("base64");
+  return blob.url;
 }
 
 // Helper to get image MIME type
@@ -128,17 +123,16 @@ Your task is to analyze the provided content and generate ONE perfect caption th
       },
     ];
 
-    // Collection to hold all images (from files and Drive)
-    const imagesToProcess: Array<{ base64: string; mimeType: string }> = [];
+    // Collection to hold all image URLs (uploaded to Vercel Blob)
+    const imageUrls: string[] = [];
 
     // Process uploaded files
     if (files.length > 0) {
       for (const file of files) {
         if (file.type.startsWith("image/")) {
-          // Handle image files
-          const base64 = await fileToBase64(file);
-          const mimeType = getImageMimeType(file);
-          imagesToProcess.push({ base64, mimeType });
+          // Upload image to Vercel Blob and get URL
+          const imageUrl = await uploadToBlob(file);
+          imageUrls.push(imageUrl);
         } else if (file.type.startsWith("video/")) {
           // Accept video but skip AI processing to avoid serverless payload limits
           // Videos cause FUNCTION_PAYLOAD_TOO_LARGE errors when sent through API
@@ -166,11 +160,9 @@ Your task is to analyze the provided content and generate ONE perfect caption th
           const { buffer, mimeType, fileName } = await downloadDriveFile(fileId);
 
           if (mimeType.startsWith("image/")) {
-            // Handle image from Drive
-            imagesToProcess.push({
-              base64: await bufferToBase64(buffer),
-              mimeType: "image/jpeg", // Sharp converts to JPEG
-            });
+            // Upload Drive image to Blob and get URL
+            const imageUrl = await uploadBufferToBlob(buffer, fileName);
+            imageUrls.push(imageUrl);
             userPrompt += `\nProcessed image from Drive: ${fileName}\n`;
           } else if (mimeType.startsWith("video/")) {
             // Accept video from Drive but skip processing to avoid payload limits
@@ -186,25 +178,24 @@ Your task is to analyze the provided content and generate ONE perfect caption th
       }
     }
 
-    // Add all collected images to the message
-    // TEMPORARY: Limit to 3 images max due to Vercel 4.5MB payload limit
-    // Even with compression, large images can exceed this
-    const maxImages = 3;
-    for (const image of imagesToProcess.slice(0, maxImages)) {
+    // Add all collected images to the message using Blob URLs
+    // Now we can support up to 10-12 images for carousels since we're sending URLs, not base64!
+    const maxImages = 10;
+    for (const imageUrl of imageUrls.slice(0, maxImages)) {
       messages[1].content.push({
         type: "image_url",
         image_url: {
-          url: `data:${image.mimeType};base64,${image.base64}`,
+          url: imageUrl, // Use Blob URL directly - no payload limit!
           detail: "low", // Use "low" for faster processing and lower cost
         },
       });
     }
 
-    if (imagesToProcess.length > maxImages) {
-      userPrompt += `\nNote: Analyzed first ${maxImages} of ${imagesToProcess.length} total images/frames.\n`;
+    if (imageUrls.length > maxImages) {
+      userPrompt += `\nNote: Analyzed first ${maxImages} of ${imageUrls.length} total images.\n`;
     }
 
-    if (imagesToProcess.length === 0) {
+    if (imageUrls.length === 0) {
       userPrompt += `\nNo visual content was successfully processed. Please create a caption based on the description provided.\n`;
     }
 
