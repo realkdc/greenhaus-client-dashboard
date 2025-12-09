@@ -119,16 +119,16 @@ export async function POST(request: NextRequest) {
 BRAND VOICE & STYLE:
 ${JSON.stringify(captionStyleJson, null, 2)}
 
-CRITICAL INSTRUCTIONS - YOU MUST USE THE JSON DATA TO CONSTRUCT THE CAPTION:
-1. **CTA Selection**: You MUST randomly select ONE CTA from the "cta_variants" array in the JSON. DO NOT use the same CTA every time. The available CTAs are:
-   ${captionStyleJson.cta_variants.map((cta: string, i: number) => `${i + 1}. "${cta}"`).join('\n   ')}
-   Vary which CTA you use - rotate through them randomly.
+CRITICAL INSTRUCTIONS - UNDERSTAND THE JSON PATTERNS AND CREATE FRESH CAPTIONS:
+The JSON file above shows you HOW captions should be structured and styled. Your job is to UNDERSTAND these patterns and CREATE NEW, UNIQUE captions that follow the same style - NOT to just copy or select from the examples.
 
-2. **Hook Construction**: Use the "headline_hooks" array as templates, but adapt them creatively based on the actual content. Don't just copy them verbatim.
+1. **Hook Pattern**: Study the "headline_hooks" array to understand the style (playful, conversational, with placeholders). Then CREATE a NEW hook in that same style based on the actual content you're analyzing. Don't copy the templates - understand the pattern and create something fresh.
 
-3. **Variable Usage**: Use elements from the "variables" object (product, flavor_notes, benefit, moment, ritual_item, emoji) to fill in the hooks and details naturally.
+2. **CTA Pattern**: Study the "cta_variants" to understand the CTA style (friendly, inviting, location-specific, ends with "21+"). Then CREATE a NEW CTA in that same style. Vary the wording while maintaining the same friendly, inviting tone. Examples show the pattern - create new ones following it.
 
-4. **Hashtag Selection**: Select exactly ${captionStyleJson.format_rules.hashtags.count} hashtags from the "examples_pool" in the JSON. Vary which hashtags you use.
+3. **Details & Variables**: Use the "variables" object to understand what types of elements to include (product names, flavor notes, benefits, moments, ritual items). Use these concepts naturally in your caption based on what you see in the images.
+
+4. **Hashtag Pattern**: Study the "examples_pool" to understand the hashtag style (brand-focused, location-based, lifestyle-oriented). Select or create ${captionStyleJson.format_rules.hashtags.count} hashtags that match this style.
 
 5. **Structure**: Hook → Details → Reward → CTA → Hashtags → "21+"
 
@@ -140,7 +140,7 @@ OTHER IMPORTANT RULES:
 - Keep it conversational and friendly, like a knowledgeable budtender friend
 - CRITICAL: NEVER use em dashes (—). Use commas, periods, or regular hyphens (-) instead.
 
-Your task is to USE THE JSON DATA to CONSTRUCT a unique caption, not just follow it as inspiration. Actively select from the arrays and use the variables to build the caption.`;
+Your task: ANALYZE the provided images, UNDERSTAND the JSON patterns, then CREATE a completely fresh, unique caption that follows those patterns. The JSON shows you HOW to write - use that understanding to create something new.`;
 
     // Build the user prompt
     let userPrompt = `Generate a ${platform} caption for this content:\n\n`;
@@ -232,19 +232,19 @@ Your task is to USE THE JSON DATA to CONSTRUCT a unique caption, not just follow
 
     userPrompt += "\n\nCRITICAL CONSTRUCTION REQUIREMENTS:";
     userPrompt += "\n1. Structure MUST be: Hook → Details → Reward → CTA → Hashtags → 21+";
-    userPrompt += "\n2. CTA Selection: You MUST randomly select ONE CTA from the cta_variants array in the JSON. DO NOT use the same CTA repeatedly. Available CTAs:";
+    userPrompt += "\n2. Hook: Study the headline_hooks in the JSON to understand the style (playful, conversational, with placeholders). CREATE a NEW hook in that same style based on what you see in the images. Don't copy the templates - understand the pattern and create something fresh.";
+    userPrompt += "\n3. CTA: Study the cta_variants in the JSON to understand the CTA style (friendly, inviting, location-specific). CREATE a NEW CTA in that same style. Vary the wording while maintaining the friendly tone. Examples:";
     captionStyleJson.cta_variants.forEach((cta: string, i: number) => {
-      userPrompt += `\n   ${i + 1}. "${cta}"`;
+      userPrompt += `\n   - "${cta}" (study the pattern, create new ones like this)`;
     });
-    userPrompt += "\n3. Hashtag Selection: Select exactly 4 hashtags from the examples_pool in the JSON. Vary which ones you use.";
-    userPrompt += "\n4. Hook Construction: Use headline_hooks as inspiration but adapt them creatively based on the actual content.";
+    userPrompt += "\n4. Hashtags: Study the examples_pool to understand the hashtag style. Select or create exactly 4 hashtags that match this style.";
     userPrompt += "\n5. NEVER use em dashes (—). Use commas, periods, or regular hyphens (-) instead.";
     userPrompt += "\n\nCONTENT REQUIREMENTS:";
-    userPrompt += "\n- Create a UNIQUE and CREATIVE caption tailored specifically to THIS content";
-    userPrompt += "\n- Avoid repetitive opening phrases like 'psst... your weekend reset'";
-    userPrompt += "\n- Vary your approach - use different hooks, angles, and creative openings";
-    userPrompt += "\n- Base the caption on what you ACTUALLY see in the provided images - analyze them carefully";
-    userPrompt += "\n- ACTIVELY USE the JSON data to construct the caption - select from arrays, use variables, don't just follow it as style guidance";
+    userPrompt += "\n- ANALYZE the provided images carefully - what products, scenes, or content do you actually see?";
+    userPrompt += "\n- UNDERSTAND the JSON patterns (how hooks are structured, how CTAs are worded, what tone is used)";
+    userPrompt += "\n- CREATE a completely fresh, unique caption that follows those patterns but is tailored to THIS specific content";
+    userPrompt += "\n- Avoid repetitive phrases - each caption should be unique";
+    userPrompt += "\n- The JSON shows you HOW to write - use that understanding to create something new, not to copy from it";
 
     // Update the text content
     messages[1].content[0].text = userPrompt;
