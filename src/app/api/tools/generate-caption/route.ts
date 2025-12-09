@@ -198,9 +198,21 @@ Your task: ANALYZE the provided images, UNDERSTAND the JSON patterns, then CREAT
             finalImageUrls.push(imageUrl);
             userPrompt += `\nProcessed image from Drive: ${fileName}\n`;
           } else if (mimeType.startsWith("video/")) {
-            // Accept video from Drive but skip processing to avoid complexity
-            userPrompt += `\nVideo file "${fileName}" from Google Drive uploaded. For best results, describe the video content in the "Content Name / Idea" field.\n`;
-            console.log(`Video from Drive accepted: ${fileName}, processing skipped`);
+            // Analyze video with Gemini if configured
+            if (isGeminiConfigured()) {
+              try {
+                console.log(`[Caption Generator] Analyzing Google Drive video with Gemini: ${fileName}`);
+                const videoAnalysis = await analyzeVideoWithGemini(buffer, fileName, mimeType);
+                userPrompt += `\n\nVideo Analysis from Google Drive (${fileName}):\n${videoAnalysis}\n`;
+                console.log(`[Caption Generator] Successfully analyzed Google Drive video: ${fileName}`);
+              } catch (error: any) {
+                console.error(`[Caption Generator] Error analyzing Google Drive video ${fileName}:`, error);
+                userPrompt += `\n\nNote: Could not analyze video file "${fileName}" from Google Drive. Please describe the video content in the "Content Name / Idea" field for best results.\n`;
+              }
+            } else {
+              console.log(`[Caption Generator] Gemini not configured, skipping Google Drive video: ${fileName}`);
+              userPrompt += `\n\nNote: Video file "${fileName}" from Google Drive was provided but video analysis is not configured. Please describe the video content in the "Content Name / Idea" field for best results.\n`;
+            }
           } else {
             userPrompt += `\nNote: Unsupported file type from Drive: ${fileName} (${mimeType})\n`;
           }
