@@ -13,6 +13,7 @@ export default function CaptionGeneratorPage(): JSX.Element {
   const [contentType, setContentType] = useState("Single Post");
   const [platform, setPlatform] = useState("Instagram");
   const [generatedCaption, setGeneratedCaption] = useState("");
+  const [videoAnalyses, setVideoAnalyses] = useState<Array<{ fileName: string; analysis: string; source: string }>>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState("");
   const [usageWarning, setUsageWarning] = useState("");
@@ -137,6 +138,14 @@ export default function CaptionGeneratorPage(): JSX.Element {
       }
 
       setGeneratedCaption(data.caption);
+      setVideoAnalyses(data.videoAnalyses || []);
+      
+      // Log video analyses for debugging
+      if (data.videoAnalyses && data.videoAnalyses.length > 0) {
+        console.log('[Frontend] Received video analyses from Gemini:', data.videoAnalyses);
+      } else {
+        console.log('[Frontend] No video analyses received - videos may not have been processed');
+      }
 
       // Clear form fields after successful generation for easy reuse
       setFiles(null);
@@ -496,6 +505,37 @@ export default function CaptionGeneratorPage(): JSX.Element {
                       <h3 className="text-sm font-semibold text-red-900">Error</h3>
                       <p className="mt-1 text-sm text-red-700">{error}</p>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Video Analysis Output (Gemini) */}
+              {videoAnalyses.length > 0 && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-blue-900">
+                      Video Analysis (Gemini)
+                    </h3>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                      {videoAnalyses.length} video{videoAnalyses.length > 1 ? 's' : ''} analyzed
+                    </span>
+                  </div>
+                  <div className="space-y-4">
+                    {videoAnalyses.map((analysis, index) => (
+                      <div key={index} className="rounded-lg bg-white p-4">
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="text-xs font-semibold text-blue-700">
+                            {analysis.fileName}
+                          </span>
+                          <span className="text-xs text-blue-500">
+                            ({analysis.source})
+                          </span>
+                        </div>
+                        <p className="whitespace-pre-wrap text-sm text-slate-700">
+                          {analysis.analysis}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

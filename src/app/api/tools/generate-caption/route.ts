@@ -174,6 +174,9 @@ Your task: ANALYZE the provided images, UNDERSTAND the JSON patterns, then CREAT
 
     // Final list of URLs to send to OpenAI
     const finalImageUrls: string[] = [...imageUrls];
+    
+    // Track Gemini video analyses to return to user
+    const videoAnalyses: Array<{ fileName: string; analysis: string; source: string }> = [];
 
     // Process Google Drive links
     if (googleDriveLinks) {
@@ -203,6 +206,13 @@ Your task: ANALYZE the provided images, UNDERSTAND the JSON patterns, then CREAT
               try {
                 console.log(`[Caption Generator] Analyzing Google Drive video with Gemini: ${fileName}`);
                 const videoAnalysis = await analyzeVideoWithGemini(buffer, fileName, mimeType);
+                console.log(`[Caption Generator] Gemini analysis for ${fileName}:`, videoAnalysis.substring(0, 200) + '...');
+                // Store analysis for response
+                videoAnalyses.push({
+                  fileName,
+                  analysis: videoAnalysis,
+                  source: 'Google Drive'
+                });
                 userPrompt += `\n\nVideo Analysis from Google Drive (${fileName}):\n${videoAnalysis}\n`;
                 console.log(`[Caption Generator] Successfully analyzed Google Drive video: ${fileName}`);
               } catch (error: any) {
@@ -272,6 +282,13 @@ Your task: ANALYZE the provided images, UNDERSTAND the JSON patterns, then CREAT
             
             // Analyze with Gemini
             const videoAnalysis = await analyzeVideoWithGemini(videoBuffer, fileName, mimeType);
+            console.log(`[Caption Generator] Gemini analysis for ${fileName}:`, videoAnalysis.substring(0, 200) + '...');
+            // Store analysis for response
+            videoAnalyses.push({
+              fileName,
+              analysis: videoAnalysis,
+              source: 'Upload'
+            });
             userPrompt += `\n\nVideo Analysis (${fileName}):\n${videoAnalysis}\n`;
             console.log(`[Caption Generator] Successfully analyzed video: ${fileName}`);
           } catch (error: any) {
@@ -424,6 +441,7 @@ Your task: ANALYZE the provided images, UNDERSTAND the JSON patterns, then CREAT
 
     return NextResponse.json({
       caption: generatedCaption,
+      videoAnalyses: videoAnalyses.length > 0 ? videoAnalyses : undefined, // Include Gemini video analyses if any
       usageWarning: updatedUsageCheck.warningMessage,
       usageInfo: {
         percentUsed: Math.round(updatedUsageCheck.percentUsed),
