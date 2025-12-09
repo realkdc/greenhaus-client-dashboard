@@ -33,7 +33,7 @@ async function generateCaptionWithRetry(messages: any[]) {
         return await openai.chat.completions.create({
           model,
           messages,
-          max_tokens: 500,
+          max_completion_tokens: 500, // gpt-5-mini uses max_completion_tokens instead of max_tokens
           temperature: 0.8,
         });
       } catch (error: any) {
