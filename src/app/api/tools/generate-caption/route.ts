@@ -33,7 +33,7 @@ async function generateCaptionWithRetry(messages: any[]) {
         return await openai.chat.completions.create({
           model,
           messages,
-          max_completion_tokens: 2000, // Increased from 500 - vision prompts need more room for completion
+          // No token limit - let the model generate the full caption naturally
           // temperature is not supported for gpt-5-mini (only default value of 1)
         });
       } catch (error: any) {
