@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     // Generate a signed URL for upload
     // The client will upload directly to this URL
-    const blob = await put(`caption-images/${fileName}`, new Uint8Array(0), {
+    const blob = await put(`caption-images/${fileName}`, Buffer.from(''), {
       access: 'public',
       addRandomSuffix: true,
       contentType: contentType || 'application/octet-stream',

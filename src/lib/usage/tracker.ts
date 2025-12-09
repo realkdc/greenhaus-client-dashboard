@@ -2,8 +2,9 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 
 // Monthly usage limits
+// Can be overridden with USAGE_MONTHLY_LIMIT environment variable
 const USAGE_LIMITS = {
-  MONTHLY_COST_LIMIT: 5.0, // $5 per month
+  MONTHLY_COST_LIMIT: parseFloat(process.env.USAGE_MONTHLY_LIMIT || "100.0"), // $100 per month default (was $5)
   WARNING_THRESHOLD: 0.8, // 80% of limit
 };
 
