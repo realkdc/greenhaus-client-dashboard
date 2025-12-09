@@ -13,6 +13,7 @@ export default function CaptionGeneratorPage(): JSX.Element {
   const [contentType, setContentType] = useState("Single Post");
   const [platform, setPlatform] = useState("Instagram");
   const [generatedCaption, setGeneratedCaption] = useState("");
+  const [imageAnalysis, setImageAnalysis] = useState<string | undefined>(undefined);
   const [videoAnalyses, setVideoAnalyses] = useState<Array<{ fileName: string; analysis: string; source: string }>>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState("");
@@ -35,7 +36,19 @@ export default function CaptionGeneratorPage(): JSX.Element {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setFiles(e.target.files);
+      // Append new files to existing files instead of replacing
+      if (files && files.length > 0) {
+        const newFiles = Array.from(e.target.files);
+        const existingFiles = Array.from(files);
+        const combined = [...existingFiles, ...newFiles];
+
+        // Convert back to FileList-like object
+        const dataTransfer = new DataTransfer();
+        combined.forEach(file => dataTransfer.items.add(file));
+        setFiles(dataTransfer.files);
+      } else {
+        setFiles(e.target.files);
+      }
     }
   };
 
@@ -58,7 +71,19 @@ export default function CaptionGeneratorPage(): JSX.Element {
 
     const droppedFiles = e.dataTransfer.files;
     if (droppedFiles && droppedFiles.length > 0) {
-      setFiles(droppedFiles);
+      // Append dropped files to existing files instead of replacing
+      if (files && files.length > 0) {
+        const newFiles = Array.from(droppedFiles);
+        const existingFiles = Array.from(files);
+        const combined = [...existingFiles, ...newFiles];
+
+        // Convert back to FileList-like object
+        const dataTransfer = new DataTransfer();
+        combined.forEach(file => dataTransfer.items.add(file));
+        setFiles(dataTransfer.files);
+      } else {
+        setFiles(droppedFiles);
+      }
     }
   };
 
@@ -179,13 +204,15 @@ export default function CaptionGeneratorPage(): JSX.Element {
 
       addProgressLog("✓ Caption generated successfully!", "success");
       setGeneratedCaption(data.caption);
+      setImageAnalysis(data.imageAnalysis);
       setVideoAnalyses(data.videoAnalyses || []);
-      
-      // Log video analyses for debugging
+
+      // Log analyses for debugging
+      if (data.imageAnalysis) {
+        console.log('[Frontend] Received image analysis from Gemini');
+      }
       if (data.videoAnalyses && data.videoAnalyses.length > 0) {
         console.log('[Frontend] Received video analyses from Gemini:', data.videoAnalyses);
-      } else {
-        console.log('[Frontend] No video analyses received - videos may not have been processed');
       }
 
       // Clear form fields after successful generation for easy reuse
@@ -327,35 +354,49 @@ export default function CaptionGeneratorPage(): JSX.Element {
                   </label>
                   </div>
                   {files && files.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      {Array.from(files).map((file, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-2"
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-slate-700">
+                          {files.length} file{files.length > 1 ? 's' : ''} selected
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setFiles(null)}
+                          className="text-xs text-red-600 hover:text-red-700 font-medium"
                         >
-                          <div className="flex items-center gap-3">
-                            <svg
-                              className="h-5 w-5 text-accent"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
-                            </svg>
-                            <span className="text-sm font-medium text-slate-700">
-                              {file.name}
+                          Clear All
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {Array.from(files).map((file, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-2"
+                          >
+                            <div className="flex items-center gap-3">
+                              <svg
+                                className="h-5 w-5 text-accent"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
+                              </svg>
+                              <span className="text-sm font-medium text-slate-700">
+                                {file.name}
+                              </span>
+                            </div>
+                            <span className="text-xs text-slate-500">
+                              {(file.size / 1024 / 1024).toFixed(2)} MB
                             </span>
                           </div>
-                          <span className="text-xs text-slate-500">
-                            {(file.size / 1024 / 1024).toFixed(2)} MB
-                          </span>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -626,6 +667,25 @@ export default function CaptionGeneratorPage(): JSX.Element {
                         );
                       })
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Image Analysis Output (Gemini) */}
+              {imageAnalysis && (
+                <div className="rounded-xl border border-purple-200 bg-purple-50 p-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-purple-900">
+                      Image Analysis (Gemini)
+                    </h3>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800">
+                      AI Analysis
+                    </span>
+                  </div>
+                  <div className="rounded-lg bg-white p-4">
+                    <p className="whitespace-pre-wrap text-sm text-slate-700">
+                      {imageAnalysis}
+                    </p>
                   </div>
                 </div>
               )}

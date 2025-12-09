@@ -65,7 +65,8 @@ export async function POST(request: NextRequest) {
     
     // Track Gemini analyses to return to user
     const videoAnalyses: Array<{ fileName: string; analysis: string; source: string }> = [];
-    
+    let imageAnalysis: string | undefined = undefined;
+
     // Track errors for better user feedback
     const driveErrors: string[] = [];
 
@@ -229,14 +230,15 @@ export async function POST(request: NextRequest) {
           contentType,
           platform
         );
-        
+
         allAnalyses.push(result.analysis);
-        
+        imageAnalysis = result.analysis; // Store image analysis for frontend
+
         // Use image caption if no video caption was generated
         if (!generatedCaption) {
           generatedCaption = result.caption;
         }
-        
+
         console.log(`[Caption Generator] Generated caption from images`);
       } catch (error: any) {
         console.error(`[Caption Generator] Error processing images:`, error);
@@ -287,6 +289,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       caption: generatedCaption,
+      imageAnalysis: imageAnalysis,
       videoAnalyses: videoAnalyses.length > 0 ? videoAnalyses : undefined,
       usageWarning: updatedUsageCheck.warningMessage,
       usageInfo: {
