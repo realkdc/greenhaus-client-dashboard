@@ -5,6 +5,7 @@ import captionStyleJson from "@/data/caption-style.json";
 import { extractFileId, downloadDriveFile } from "@/lib/tools/googleDrive";
 import { checkUsageLimit, recordUsage, calculateCost } from "@/lib/usage/tracker";
 import { getRecentPhrasesToAvoid, saveCaptionToHistory } from "@/lib/caption-history";
+import { analyzeVideoWithGemini, isGeminiConfigured } from "@/lib/tools/geminiVideo";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -210,12 +211,67 @@ Your task: ANALYZE the provided images, UNDERSTAND the JSON patterns, then CREAT
       }
     }
 
-    // Add all collected images to the message
-    // We can support more images now since we are sending URLs
-    const maxImages = 10;
-    const imagesToSend = finalImageUrls.slice(0, maxImages);
+    // Separate videos from images - videos will be analyzed with Gemini, images with OpenAI
+    const imageUrlsOnly: string[] = [];
+    const videoUrls: string[] = [];
     
-    console.log(`[Caption Generator] Sending ${imagesToSend.length} images to OpenAI (out of ${finalImageUrls.length} total)`);
+    for (const url of finalImageUrls) {
+      const lowerUrl = url.toLowerCase();
+      const isVideo = lowerUrl.includes('.mp4') || 
+                     lowerUrl.includes('.mov') || 
+                     lowerUrl.includes('.avi') || 
+                     lowerUrl.includes('.webm') ||
+                     lowerUrl.includes('video/');
+      if (isVideo) {
+        videoUrls.push(url);
+      } else {
+        imageUrlsOnly.push(url);
+      }
+    }
+    
+    // Analyze videos with Gemini if configured
+    if (videoUrls.length > 0) {
+      if (isGeminiConfigured()) {
+        console.log(`[Caption Generator] Analyzing ${videoUrls.length} video(s) with Gemini...`);
+        for (const videoUrl of videoUrls.slice(0, 3)) { // Limit to 3 videos to avoid timeout
+          try {
+            // Download video from Blob URL
+            const videoResponse = await fetch(videoUrl);
+            if (!videoResponse.ok) {
+              throw new Error(`Failed to download video: ${videoResponse.statusText}`);
+            }
+            const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+            
+            // Determine mime type from URL
+            const fileName = videoUrl.split('/').pop() || 'video.mp4';
+            let mimeType = 'video/mp4';
+            if (fileName.includes('.mov')) mimeType = 'video/quicktime';
+            else if (fileName.includes('.webm')) mimeType = 'video/webm';
+            else if (fileName.includes('.avi')) mimeType = 'video/x-msvideo';
+            
+            // Analyze with Gemini
+            const videoAnalysis = await analyzeVideoWithGemini(videoBuffer, fileName, mimeType);
+            userPrompt += `\n\nVideo Analysis (${fileName}):\n${videoAnalysis}\n`;
+            console.log(`[Caption Generator] Successfully analyzed video: ${fileName}`);
+          } catch (error: any) {
+            console.error(`[Caption Generator] Error analyzing video ${videoUrl}:`, error);
+            userPrompt += `\n\nNote: Could not analyze video file. Please describe the video content in the "Content Name / Idea" field for best results.\n`;
+          }
+        }
+        if (videoUrls.length > 3) {
+          userPrompt += `\nNote: Analyzed first 3 of ${videoUrls.length} videos. Remaining videos will be skipped.\n`;
+        }
+      } else {
+        console.log(`[Caption Generator] Gemini not configured, skipping ${videoUrls.length} video(s)`);
+        userPrompt += `\n\nNote: ${videoUrls.length} video file(s) were provided but video analysis is not configured. Please describe the video content in the "Content Name / Idea" field for best results.\n`;
+      }
+    }
+    
+    // Add all collected images to the message (videos handled separately above)
+    const maxImages = 10;
+    const imagesToSend = imageUrlsOnly.slice(0, maxImages);
+    
+    console.log(`[Caption Generator] Sending ${imagesToSend.length} images to OpenAI (out of ${imageUrlsOnly.length} total, ${videoUrls.length} videos analyzed with Gemini)`);
     
     for (const url of imagesToSend) {
       messages[1].content.push({
@@ -227,15 +283,21 @@ Your task: ANALYZE the provided images, UNDERSTAND the JSON patterns, then CREAT
       });
     }
 
-    if (finalImageUrls.length > maxImages) {
-      userPrompt += `\nNote: Analyzed first ${maxImages} of ${finalImageUrls.length} total images.\n`;
+    if (imageUrlsOnly.length > maxImages) {
+      userPrompt += `\nNote: Analyzed first ${maxImages} of ${imageUrlsOnly.length} total images.\n`;
     }
 
-    if (finalImageUrls.length === 0) {
+    if (imageUrlsOnly.length === 0 && videoUrls.length === 0) {
       userPrompt += `\nNo visual content was successfully processed. Please create a caption based on the description provided.\n`;
     } else {
-      // Emphasize that images were provided and must be analyzed
-      userPrompt += `\n\nIMPORTANT: ${finalImageUrls.length} image(s) are provided above. You MUST carefully analyze these actual images to understand what's in them. The caption must be based on what you SEE in the images, not just the text description.`;
+      // Emphasize that images/videos were provided and must be analyzed
+      if (imageUrlsOnly.length > 0) {
+        userPrompt += `\n\nIMPORTANT: ${imageUrlsOnly.length} image(s) are provided above. You MUST carefully analyze these actual images to understand what's in them.`;
+      }
+      if (videoUrls.length > 0) {
+        userPrompt += `\n\nIMPORTANT: ${videoUrls.length} video(s) were analyzed above. Use the video analysis descriptions to understand the video content.`;
+      }
+      userPrompt += `\n\nThe caption must be based on what you SEE in the images/videos, not just the text description.`;
     }
 
     // Get recent captions to avoid repetition

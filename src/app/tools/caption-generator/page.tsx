@@ -4,6 +4,7 @@ import { useState } from "react";
 import RequireAuth from "@/components/require-auth";
 import Link from "next/link";
 import { upload } from '@vercel/blob/client';
+import toast from "react-hot-toast";
 
 export default function CaptionGeneratorPage(): JSX.Element {
   const [files, setFiles] = useState<FileList | null>(null);
@@ -535,8 +536,13 @@ export default function CaptionGeneratorPage(): JSX.Element {
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(generatedCaption);
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(generatedCaption);
+                        toast.success("Caption copied to clipboard!");
+                      } catch (error) {
+                        toast.error("Failed to copy caption");
+                      }
                     }}
                     className="mt-4 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-accent/90"
                   >

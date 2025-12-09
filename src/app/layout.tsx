@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { Inter, Roboto_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/auth-provider";
 import MainNav from "@/components/main-nav";
+import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
 const inter = Inter({
@@ -75,6 +76,7 @@ export default function RootLayout({
             )}
           </div>
         </AuthProvider>
+        <Toaster position="top-right" />
       </body>
     </html>
   );
