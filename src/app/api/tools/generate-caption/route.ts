@@ -34,7 +34,7 @@ async function generateCaptionWithRetry(messages: any[]) {
           model,
           messages,
           max_completion_tokens: 500, // gpt-5-mini uses max_completion_tokens instead of max_tokens
-          temperature: 0.8,
+          // temperature is not supported for gpt-5-mini (only default value of 1)
         });
       } catch (error: any) {
         lastError = error;
