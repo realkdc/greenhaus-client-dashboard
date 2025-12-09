@@ -74,7 +74,14 @@ export default function CaptionGeneratorPage(): JSX.Element {
             try {
               setUploadProgress(Math.round((processedFiles / totalFiles) * 50));
               
-              const newBlob = await upload(file.name, file, {
+              // Generate unique filename to avoid conflicts
+              const timestamp = Date.now();
+              const randomSuffix = Math.random().toString(36).substring(2, 9);
+              const fileExtension = file.name.split('.').pop() || '';
+              const baseName = file.name.replace(/\.[^/.]+$/, '');
+              const uniqueFileName = `caption-images/${baseName}-${timestamp}-${randomSuffix}.${fileExtension}`;
+              
+              const newBlob = await upload(uniqueFileName, file, {
                 access: 'public',
                 handleUploadUrl: '/api/tools/upload-token',
               });
@@ -90,6 +97,30 @@ export default function CaptionGeneratorPage(): JSX.Element {
                 throw new Error(
                   'Blob storage is not configured. Please set BLOB_READ_WRITE_TOKEN in Vercel project settings under Environment Variables.'
                 );
+              }
+              
+              // Check if it's a duplicate blob error and retry with a new unique name
+              if (uploadError?.message?.includes('already exists')) {
+                console.log('Blob already exists, retrying with new unique name...');
+                // Retry once with a new unique name
+                const timestamp = Date.now();
+                const randomSuffix = Math.random().toString(36).substring(2, 9);
+                const fileExtension = file.name.split('.').pop() || '';
+                const baseName = file.name.replace(/\.[^/.]+$/, '');
+                const uniqueFileName = `caption-images/${baseName}-${timestamp}-${randomSuffix}.${fileExtension}`;
+                
+                try {
+                  const newBlob = await upload(uniqueFileName, file, {
+                    access: 'public',
+                    handleUploadUrl: '/api/tools/upload-token',
+                  });
+                  imageUrls.push(newBlob.url);
+                  processedFiles++;
+                  setUploadProgress(Math.round((processedFiles / totalFiles) * 90));
+                  continue; // Success, continue to next file
+                } catch (retryError: any) {
+                  throw new Error(`Failed to upload ${file.name} after retry: ${retryError?.message || 'Unknown error'}`);
+                }
               }
               
               throw new Error(`Failed to upload ${file.name}: ${uploadError?.message || 'Unknown error'}`);
