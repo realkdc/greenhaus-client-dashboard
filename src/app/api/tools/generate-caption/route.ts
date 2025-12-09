@@ -9,16 +9,33 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Helper to convert files to base64
+// Helper to convert files to base64 with compression
 async function fileToBase64(file: File): Promise<string> {
+  const sharp = require('sharp');
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
-  return buffer.toString("base64");
+
+  // Compress images to reduce payload size (Vercel has 4.5MB limit)
+  // Resize to max 800px width and compress to 80% quality
+  const compressed = await sharp(buffer)
+    .resize(800, null, { withoutEnlargement: true })
+    .jpeg({ quality: 80 })
+    .toBuffer();
+
+  return compressed.toString("base64");
 }
 
-// Helper to convert buffer to base64
-function bufferToBase64(buffer: Buffer): string {
-  return buffer.toString("base64");
+// Helper to convert buffer to base64 with compression
+async function bufferToBase64(buffer: Buffer): Promise<string> {
+  const sharp = require('sharp');
+
+  // Compress images from Google Drive too
+  const compressed = await sharp(buffer)
+    .resize(800, null, { withoutEnlargement: true })
+    .jpeg({ quality: 80 })
+    .toBuffer();
+
+  return compressed.toString("base64");
 }
 
 // Helper to get image MIME type
@@ -151,8 +168,8 @@ Your task is to analyze the provided content and generate ONE perfect caption th
           if (mimeType.startsWith("image/")) {
             // Handle image from Drive
             imagesToProcess.push({
-              base64: bufferToBase64(buffer),
-              mimeType,
+              base64: await bufferToBase64(buffer),
+              mimeType: "image/jpeg", // Sharp converts to JPEG
             });
             userPrompt += `\nProcessed image from Drive: ${fileName}\n`;
           } else if (mimeType.startsWith("video/")) {
