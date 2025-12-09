@@ -1,12 +1,44 @@
 import { google } from "googleapis";
 import { Readable } from "stream";
 
+// Helper to format private key
+function formatPrivateKey(key: string | undefined): string | undefined {
+  if (!key) return undefined;
+  
+  // Handle literal \n strings (common in env vars)
+  let formattedKey = key.replace(/\\n/g, "\n");
+  
+  // Remove any surrounding quotes that might have been pasted
+  if (formattedKey.startsWith('"') && formattedKey.endsWith('"')) {
+    formattedKey = formattedKey.slice(1, -1);
+  }
+  if (formattedKey.startsWith("'") && formattedKey.endsWith("'")) {
+    formattedKey = formattedKey.slice(1, -1);
+  }
+
+  return formattedKey;
+}
+
 // Initialize Google Drive API with service account
 function getDriveClient() {
+  const clientEmail = process.env.GOOGLE_DRIVE_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
+  const rawPrivateKey = process.env.GOOGLE_DRIVE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY;
+  const privateKey = formatPrivateKey(rawPrivateKey);
+
+  // Debug logging (safe)
+  if (!privateKey) {
+    console.error("[Google Drive] Missing private key");
+  } else if (process.env.NODE_ENV !== 'production') {
+    // Only log key details in non-production or if strictly needed for debugging
+    const keyLength = privateKey.length;
+    const firstLine = privateKey.split('\n')[0];
+    console.log(`[Google Drive] Initializing client. Email: ${clientEmail ? 'Set' : 'Missing'}, Key length: ${keyLength}, Header: ${firstLine}`);
+  }
+
   const auth = new google.auth.GoogleAuth({
     credentials: {
-      client_email: process.env.GOOGLE_DRIVE_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL,
-      private_key: (process.env.GOOGLE_DRIVE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY)?.replace(/\\n/g, "\n"),
+      client_email: clientEmail,
+      private_key: privateKey,
     },
     scopes: ["https://www.googleapis.com/auth/drive.readonly"],
   });

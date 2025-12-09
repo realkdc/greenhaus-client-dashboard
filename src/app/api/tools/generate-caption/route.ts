@@ -114,6 +114,9 @@ export async function POST(request: NextRequest) {
           if (errorMessage.includes("invalid_grant") || errorMessage.includes("account not found")) {
             userErrorMsg = `Google Drive authentication error. Please check that GOOGLE_DRIVE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY (or GOOGLE_DRIVE_PRIVATE_KEY) are correctly configured in Vercel environment variables.`;
             console.error(`[Caption Generator] Google Drive authentication error for ${link}: ${errorMessage}`);
+          } else if (errorMessage.includes("DECODER routines::unsupported") || errorMessage.includes("bad decrypt")) {
+            userErrorMsg = `Private Key Format Error. The GOOGLE_DRIVE_PRIVATE_KEY (or FIREBASE_PRIVATE_KEY) is invalid. It should start with "-----BEGIN PRIVATE KEY-----" and not be surrounded by quotes. Please check Vercel environment variables.`;
+            console.error(`[Caption Generator] Private Key format error: ${errorMessage}`);
           } else if (errorMessage.includes("permission") || errorMessage.includes("access") || errorMessage.includes("404")) {
             userErrorMsg = `Could not access file from Google Drive link. Make sure the file is shared with "Anyone with the link can view" and the link is correct.`;
             console.error(`[Caption Generator] Access error for ${link}: ${errorMessage}`);
