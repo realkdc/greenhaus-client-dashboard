@@ -3,8 +3,19 @@ import { FieldValue } from "firebase-admin/firestore";
 
 // Monthly usage limits
 // Can be overridden with USAGE_MONTHLY_LIMIT environment variable
+function getMonthlyLimit(): number {
+  const envValue = process.env.USAGE_MONTHLY_LIMIT;
+  // Handle empty string, undefined, null, or invalid values
+  if (!envValue || envValue.trim() === "") {
+    return 5.0;
+  }
+  const parsed = parseFloat(envValue);
+  // Return default if parseFloat returns NaN
+  return isNaN(parsed) ? 5.0 : parsed;
+}
+
 const USAGE_LIMITS = {
-  MONTHLY_COST_LIMIT: parseFloat(process.env.USAGE_MONTHLY_LIMIT || "100.0"), // $100 per month default (was $5)
+  MONTHLY_COST_LIMIT: getMonthlyLimit(), // $5 per month default
   WARNING_THRESHOLD: 0.8, // 80% of limit
 };
 
@@ -64,18 +75,29 @@ async function getUsageRecord(): Promise<UsageRecord> {
 export async function checkUsageLimit(): Promise<UsageCheckResult> {
   const usage = await getUsageRecord();
   const limit = USAGE_LIMITS.MONTHLY_COST_LIMIT;
-  const remainingCost = limit - usage.totalCost;
-  const percentUsed = (usage.totalCost / limit) * 100;
+  
+  // Ensure totalCost is a number and handle any undefined/null values
+  const totalCost = typeof usage.totalCost === 'number' ? usage.totalCost : 0;
+  
+  // Log for debugging
+  console.log('[Usage Tracker] Current month:', usage.month);
+  console.log('[Usage Tracker] Total cost:', totalCost);
+  console.log('[Usage Tracker] Limit:', limit);
+  console.log('[Usage Tracker] Request count:', usage.requestCount);
+  
+  const remainingCost = limit - totalCost;
+  const percentUsed = (totalCost / limit) * 100;
 
   // Check if over limit
-  if (usage.totalCost >= limit) {
+  if (totalCost >= limit) {
+    console.log('[Usage Tracker] BLOCKED - Over limit');
     return {
       allowed: false,
-      currentCost: usage.totalCost,
+      currentCost: totalCost,
       limit,
       remainingCost: 0,
       percentUsed,
-      warningMessage: `Monthly usage limit reached. Limit will reset next month.`,
+      warningMessage: `Monthly usage limit reached ($${totalCost.toFixed(2)} / $${limit.toFixed(2)}). Limit will reset next month.`,
     };
   }
 
