@@ -15,9 +15,9 @@ const CAPTION_MODELS = (process.env.CAPTION_MODELS || "")
   .map((m) => m.trim())
   .filter(Boolean);
 
-// Default to gpt-4o-mini (cheaper, faster, supports vision)
+// Default to gpt-5-mini (as previously used)
 // Can override with CAPTION_MODELS env var (comma-separated)
-const DEFAULT_MODELS = ["gpt-4o-mini"];
+const DEFAULT_MODELS = ["gpt-5-mini"];
 
 // Retry helper for OpenAI calls to ride out short rate limits
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
