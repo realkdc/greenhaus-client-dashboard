@@ -3,6 +3,7 @@
 import { useState } from "react";
 import RequireAuth from "@/components/require-auth";
 import Link from "next/link";
+import { upload } from '@vercel/blob/client';
 
 export default function CaptionGeneratorPage(): JSX.Element {
   const [files, setFiles] = useState<FileList | null>(null);
@@ -19,6 +20,7 @@ export default function CaptionGeneratorPage(): JSX.Element {
     remainingCost: string;
   } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -53,29 +55,48 @@ export default function CaptionGeneratorPage(): JSX.Element {
     setIsGenerating(true);
     setError("");
     setGeneratedCaption("");
+    setUploadProgress(0);
 
     try {
-      const formData = new FormData();
+      const imageUrls: string[] = [];
 
-      // Add files to form data
-      if (files) {
-        Array.from(files).forEach((file) => {
-          formData.append("files", file);
-        });
+      // Upload files to Vercel Blob (Client-Side Upload)
+      if (files && files.length > 0) {
+        const totalFiles = files.length;
+        let processedFiles = 0;
+
+        for (const file of Array.from(files)) {
+          // Skip non-image/video files logic if needed, but the input accepts image/*,video/*
+          // For now, we assume all selected files are valid to upload
+          
+          try {
+            const newBlob = await upload(file.name, file, {
+              access: 'public',
+              handleUploadUrl: '/api/tools/upload-token',
+            });
+
+            imageUrls.push(newBlob.url);
+            processedFiles++;
+            setUploadProgress(Math.round((processedFiles / totalFiles) * 100));
+          } catch (uploadError) {
+            console.error("Error uploading file:", uploadError);
+            throw new Error(`Failed to upload ${file.name}`);
+          }
+        }
       }
-
-      // Add other data
-      if (googleDriveLinks.trim()) {
-        formData.append("googleDriveLinks", googleDriveLinks.trim());
-      }
-
-      formData.append("contentName", contentName.trim());
-      formData.append("contentType", contentType);
-      formData.append("platform", platform);
 
       const response = await fetch("/api/tools/generate-caption", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          imageUrls,
+          googleDriveLinks: googleDriveLinks.trim(),
+          contentName: contentName.trim(),
+          contentType,
+          platform,
+        }),
       });
 
       // Check if response is JSON before parsing
@@ -107,6 +128,7 @@ export default function CaptionGeneratorPage(): JSX.Element {
       setError(err instanceof Error ? err.message : "Failed to generate caption");
     } finally {
       setIsGenerating(false);
+      setUploadProgress(0);
     }
   };
 
@@ -384,7 +406,9 @@ export default function CaptionGeneratorPage(): JSX.Element {
                           d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                         ></path>
                       </svg>
-                      Generating Caption...
+                      {uploadProgress > 0 && uploadProgress < 100 
+                        ? `Uploading... ${uploadProgress}%`
+                        : "Generating Caption..."}
                     </span>
                   ) : (
                     "Generate Caption"

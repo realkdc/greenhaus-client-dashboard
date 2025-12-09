@@ -3,25 +3,11 @@ import OpenAI from "openai";
 import { put } from '@vercel/blob';
 import captionStyleJson from "@/data/caption-style.json";
 import { extractFileId, downloadDriveFile } from "@/lib/tools/googleDrive";
-import { isGeminiConfigured } from "@/lib/tools/geminiVideo";
 import { checkUsageLimit, recordUsage, calculateCost } from "@/lib/usage/tracker";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-
-// Helper to upload file to Vercel Blob and return URL
-async function uploadToBlob(file: File): Promise<string> {
-  const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
-
-  const blob = await put(file.name, buffer, {
-    access: 'public',
-    addRandomSuffix: true,
-  });
-
-  return blob.url;
-}
 
 // Helper to upload buffer to Vercel Blob and return URL
 async function uploadBufferToBlob(buffer: Buffer, fileName: string): Promise<string> {
@@ -31,24 +17,6 @@ async function uploadBufferToBlob(buffer: Buffer, fileName: string): Promise<str
   });
 
   return blob.url;
-}
-
-// Helper to get image MIME type
-function getImageMimeType(file: File): string {
-  const ext = file.name.split(".").pop()?.toLowerCase();
-  switch (ext) {
-    case "jpg":
-    case "jpeg":
-      return "image/jpeg";
-    case "png":
-      return "image/png";
-    case "gif":
-      return "image/gif";
-    case "webp":
-      return "image/webp";
-    default:
-      return "image/jpeg";
-  }
 }
 
 export async function POST(request: NextRequest) {
@@ -69,17 +37,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const formData = await request.formData();
-    const files = formData.getAll("files") as File[];
-    const googleDriveLinks = formData.get("googleDriveLinks") as string;
-    const contentName = formData.get("contentName") as string;
-    const contentType = formData.get("contentType") as string || "Single Post";
-    const platform = formData.get("platform") as string || "Instagram";
+    const body = await request.json();
+    const imageUrls = body.imageUrls as string[] || [];
+    const googleDriveLinks = body.googleDriveLinks as string;
+    const contentName = body.contentName as string;
+    const contentType = body.contentType as string || "Single Post";
+    const platform = body.platform as string || "Instagram";
 
-    // Validate input - require either files, Drive links, OR content description
-    if (files.length === 0 && !googleDriveLinks && !contentName) {
+    // Validate input - require either image URLs, Drive links, OR content description
+    if (imageUrls.length === 0 && !googleDriveLinks && !contentName) {
       return NextResponse.json(
-        { error: "Please provide at least one file, Google Drive link, or content description" },
+        { error: "Please provide at least one image, Google Drive link, or content description" },
         { status: 400 }
       );
     }
@@ -123,24 +91,8 @@ Your task is to analyze the provided content and generate ONE perfect caption th
       },
     ];
 
-    // Collection to hold all image URLs (uploaded to Vercel Blob)
-    const imageUrls: string[] = [];
-
-    // Process uploaded files
-    if (files.length > 0) {
-      for (const file of files) {
-        if (file.type.startsWith("image/")) {
-          // Upload image to Vercel Blob and get URL
-          const imageUrl = await uploadToBlob(file);
-          imageUrls.push(imageUrl);
-        } else if (file.type.startsWith("video/")) {
-          // Accept video but skip AI processing to avoid serverless payload limits
-          // Videos cause FUNCTION_PAYLOAD_TOO_LARGE errors when sent through API
-          userPrompt += `\nVideo file "${file.name}" uploaded. For best results, describe the video content in the "Content Name / Idea" field.\n`;
-          console.log(`Video file accepted: ${file.name}, processing skipped due to serverless constraints`);
-        }
-      }
-    }
+    // Final list of URLs to send to OpenAI
+    const finalImageUrls: string[] = [...imageUrls];
 
     // Process Google Drive links
     if (googleDriveLinks) {
@@ -162,12 +114,12 @@ Your task is to analyze the provided content and generate ONE perfect caption th
           if (mimeType.startsWith("image/")) {
             // Upload Drive image to Blob and get URL
             const imageUrl = await uploadBufferToBlob(buffer, fileName);
-            imageUrls.push(imageUrl);
+            finalImageUrls.push(imageUrl);
             userPrompt += `\nProcessed image from Drive: ${fileName}\n`;
           } else if (mimeType.startsWith("video/")) {
-            // Accept video from Drive but skip processing to avoid payload limits
+            // Accept video from Drive but skip processing to avoid complexity
             userPrompt += `\nVideo file "${fileName}" from Google Drive uploaded. For best results, describe the video content in the "Content Name / Idea" field.\n`;
-            console.log(`Video from Drive accepted: ${fileName}, processing skipped due to serverless constraints`);
+            console.log(`Video from Drive accepted: ${fileName}, processing skipped`);
           } else {
             userPrompt += `\nNote: Unsupported file type from Drive: ${fileName} (${mimeType})\n`;
           }
@@ -178,24 +130,24 @@ Your task is to analyze the provided content and generate ONE perfect caption th
       }
     }
 
-    // Add all collected images to the message using Blob URLs
-    // Now we can support up to 10-12 images for carousels since we're sending URLs, not base64!
+    // Add all collected images to the message
+    // We can support more images now since we are sending URLs
     const maxImages = 10;
-    for (const imageUrl of imageUrls.slice(0, maxImages)) {
+    for (const url of finalImageUrls.slice(0, maxImages)) {
       messages[1].content.push({
         type: "image_url",
         image_url: {
-          url: imageUrl, // Use Blob URL directly - no payload limit!
+          url: url,
           detail: "low", // Use "low" for faster processing and lower cost
         },
       });
     }
 
-    if (imageUrls.length > maxImages) {
-      userPrompt += `\nNote: Analyzed first ${maxImages} of ${imageUrls.length} total images.\n`;
+    if (finalImageUrls.length > maxImages) {
+      userPrompt += `\nNote: Analyzed first ${maxImages} of ${finalImageUrls.length} total images.\n`;
     }
 
-    if (imageUrls.length === 0) {
+    if (finalImageUrls.length === 0) {
       userPrompt += `\nNo visual content was successfully processed. Please create a caption based on the description provided.\n`;
     }
 
@@ -204,12 +156,12 @@ Your task is to analyze the provided content and generate ONE perfect caption th
     // Update the text content
     messages[1].content[0].text = userPrompt;
 
-    // Call OpenAI API with GPT-5 mini (supports vision)
+    // Call OpenAI API with GPT-4o (better for vision)
     const completion = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o", // Upgrading to gpt-4o for better vision support
       messages: messages,
       max_tokens: 500,
-      temperature: 0.8, // Slightly creative but still consistent
+      temperature: 0.8,
     });
 
     const generatedCaption = completion.choices[0]?.message?.content?.trim();
