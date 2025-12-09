@@ -9,6 +9,67 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Configurable model list so we can avoid specific families (e.g., 4o)
+const CAPTION_MODELS = (process.env.CAPTION_MODELS || "")
+  .split(",")
+  .map((m) => m.trim())
+  .filter(Boolean);
+
+// Default to gpt-4o-mini (cheaper, faster, supports vision)
+// Can override with CAPTION_MODELS env var (comma-separated)
+const DEFAULT_MODELS = ["gpt-4o-mini"];
+
+// Retry helper for OpenAI calls to ride out short rate limits
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function generateCaptionWithRetry(messages: any[]) {
+  // Try configured models first, otherwise fall back to defaults
+  const models = CAPTION_MODELS.length > 0 ? CAPTION_MODELS : DEFAULT_MODELS;
+  let lastError: any = null;
+
+  for (const model of models) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await openai.chat.completions.create({
+          model,
+          messages,
+          max_tokens: 500,
+          temperature: 0.8,
+        });
+      } catch (error: any) {
+        lastError = error;
+        const status = error?.status ?? error?.response?.status;
+        const isRetryable = status === 429 || (status && status >= 500);
+
+        if (!isRetryable) {
+          throw error;
+        }
+
+        // Respect retry-after header if present; otherwise exponential backoff with jitter
+        const retryAfterHeader =
+          typeof error?.response?.headers?.get === "function"
+            ? error.response.headers.get("retry-after")
+            : error?.response?.headers?.["retry-after"];
+
+        const retryAfterMs =
+          retryAfterHeader && !isNaN(Number(retryAfterHeader))
+            ? Number(retryAfterHeader) * 1000
+            : Math.min(4000, 1000 * Math.pow(2, attempt)) + Math.random() * 250;
+
+        console.warn(
+          `[Caption Generator] OpenAI ${status} on ${model}, attempt ${attempt + 1} — retrying in ${Math.round(
+            retryAfterMs
+          )}ms`
+        );
+
+        await sleep(retryAfterMs);
+      }
+    }
+  }
+
+  throw lastError || new Error("OpenAI temporarily unavailable. Please try again.");
+}
+
 // Helper to upload buffer to Vercel Blob and return URL
 async function uploadBufferToBlob(buffer: Buffer, fileName: string): Promise<string> {
   const blob = await put(fileName, buffer, {
@@ -156,13 +217,8 @@ Your task is to analyze the provided content and generate ONE perfect caption th
     // Update the text content
     messages[1].content[0].text = userPrompt;
 
-    // Call OpenAI API with GPT-4o (better for vision)
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o", // Upgrading to gpt-4o for better vision support
-      messages: messages,
-      max_tokens: 500,
-      temperature: 0.8,
-    });
+    // Call OpenAI with retry/backoff to survive transient rate limits
+    const completion = await generateCaptionWithRetry(messages);
 
     const generatedCaption = completion.choices[0]?.message?.content?.trim();
 
@@ -193,12 +249,28 @@ Your task is to analyze the provided content and generate ONE perfect caption th
     });
   } catch (error: any) {
     console.error("Error generating caption:", error);
+    console.error("Error details:", {
+      status: error?.status,
+      code: error?.code,
+      message: error?.message,
+      type: error?.type,
+    });
 
     // Handle specific OpenAI errors
     if (error?.status === 401) {
       return NextResponse.json(
-        { error: "Invalid OpenAI API key" },
+        { error: "Invalid OpenAI API key. Please check your OPENAI_API_KEY environment variable." },
         { status: 500 }
+      );
+    }
+
+    if (error?.status === 402) {
+      return NextResponse.json(
+        { 
+          error: "OpenAI account payment required. Please add a payment method to your OpenAI account at https://platform.openai.com/account/billing",
+          details: "OpenAI requires a payment method on file to use their API, even for free tier usage."
+        },
+        { status: 402 }
       );
     }
 
@@ -209,9 +281,32 @@ Your task is to analyze the provided content and generate ONE perfect caption th
       );
     }
 
+    // Handle model-specific errors
+    if (error?.code === 'model_not_found' || error?.message?.includes('model_not_found')) {
+      return NextResponse.json(
+        { 
+          error: `Model not available. Please check your CAPTION_MODELS environment variable or use a different model.`,
+          details: error?.message
+        },
+        { status: 500 }
+      );
+    }
+
+    // Handle insufficient quota errors
+    if (error?.code === 'insufficient_quota' || error?.message?.includes('insufficient_quota') || error?.message?.includes('billing')) {
+      return NextResponse.json(
+        { 
+          error: "OpenAI account has insufficient quota. Please check your billing at https://platform.openai.com/account/billing",
+          details: "You may need to add funds or update your payment method."
+        },
+        { status: 402 }
+      );
+    }
+
     return NextResponse.json(
       {
-        error: error?.message || "Failed to generate caption. Please try again."
+        error: error?.message || "Failed to generate caption. Please try again.",
+        details: error?.code ? `Error code: ${error.code}` : undefined
       },
       { status: 500 }
     );
