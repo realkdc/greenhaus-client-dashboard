@@ -70,35 +70,32 @@ export default function CaptionGeneratorPage(): JSX.Element {
           const totalFiles = imageFiles.length;
           let processedFiles = 0;
 
-          for (const file of imageFiles) {
-            try {
-              setUploadProgress(Math.round((processedFiles / totalFiles) * 50));
-              
-              // Use consistent filename - overwrite if duplicate (saves storage)
-              const fileName = `caption-images/${file.name}`;
-              
-              const newBlob = await upload(fileName, file, {
-                access: 'public',
-                handleUploadUrl: '/api/tools/upload-token',
-                allowOverwrite: true, // Overwrite duplicates instead of creating new files
-              });
+          // Upload files via server-side endpoint (supports allowOverwrite)
+          setUploadProgress(10);
+          
+          const uploadFormData = new FormData();
+          imageFiles.forEach((file) => {
+            uploadFormData.append("files", file);
+          });
 
-              imageUrls.push(newBlob.url);
-              processedFiles++;
-              setUploadProgress(Math.round((processedFiles / totalFiles) * 90));
-            } catch (uploadError: any) {
-              console.error("Error uploading file:", uploadError);
-              
-              // Check if it's a token error
-              if (uploadError?.message?.includes('token') || uploadError?.message?.includes('BLOB_READ_WRITE_TOKEN')) {
-                throw new Error(
-                  'Blob storage is not configured. Please set BLOB_READ_WRITE_TOKEN in Vercel project settings under Environment Variables.'
-                );
-              }
-              
-              throw new Error(`Failed to upload ${file.name}: ${uploadError?.message || 'Unknown error'}`);
-            }
+          setUploadProgress(30);
+
+          const uploadResponse = await fetch("/api/tools/upload-images", {
+            method: "POST",
+            body: uploadFormData,
+          });
+
+          setUploadProgress(70);
+
+          if (!uploadResponse.ok) {
+            const errorData = await uploadResponse.json();
+            throw new Error(errorData.error || "Failed to upload images");
           }
+
+          const uploadData = await uploadResponse.json();
+          imageUrls.push(...(uploadData.urls || []));
+          
+          setUploadProgress(100);
           
           setUploadProgress(100);
         }

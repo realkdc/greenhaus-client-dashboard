@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
         const blob = await put(`caption-images/${file.name}`, buffer, {
           access: 'public',
-          addRandomSuffix: true,
+          allowOverwrite: true, // Overwrite duplicates to save storage space
           contentType: file.type,
         });
 
