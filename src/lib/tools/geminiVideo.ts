@@ -132,28 +132,69 @@ Keep the description concise but informative, focusing on elements that would be
 
     // Extract caption from the response
     // Look for patterns like "A relevant Instagram caption for..." or similar
-    const captionMatch = text.match(/A relevant Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n$|$)/i) ||
-                        text.match(/Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n$|$)/i) ||
-                        text.match(/caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n$|$)/i);
+    // Try multiple patterns to catch different formatting styles
+    let caption = "";
     
-    let caption = captionMatch ? captionMatch[1].trim() : "";
+    // Pattern 1: "A relevant Instagram caption for..." or "Instagram caption:"
+    const pattern1 = text.match(/A relevant Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n(?=\d+\.)|$)/i);
+    if (pattern1 && pattern1[1]) {
+      caption = pattern1[1].trim();
+    }
     
-    // If no caption found, try to extract the last paragraph
-    if (!caption) {
+    // Pattern 2: "Instagram caption:" (simpler)
+    if (!caption || caption.length < 10) {
+      const pattern2 = text.match(/Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n(?=\d+\.)|$)/i);
+      if (pattern2 && pattern2[1]) {
+        caption = pattern2[1].trim();
+      }
+    }
+    
+    // Pattern 3: Look for quoted caption (might be in quotes)
+    if (!caption || caption.length < 10) {
+      const pattern3 = text.match(/caption[^:]*:\s*["']?([\s\S]+?)["']?(?:\n\n|\n(?=\d+\.)|$)/i);
+      if (pattern3 && pattern3[1]) {
+        caption = pattern3[1].trim();
+      }
+    }
+    
+    // Strip markdown formatting if present (**text** becomes text)
+    if (caption) {
+      caption = caption.replace(/\*\*([^*]+)\*\*/g, '$1'); // Remove **bold**
+      caption = caption.replace(/\*([^*]+)\*/g, '$1'); // Remove *italic*
+      caption = caption.replace(/^["']|["']$/g, ''); // Remove surrounding quotes
+      caption = caption.trim();
+    }
+    
+    // If still no good caption, try to extract the last paragraph
+    if (!caption || caption.length < 10) {
       const paragraphs = text.split(/\n\n+/);
-      const lastParagraph = paragraphs[paragraphs.length - 1];
-      if (lastParagraph && lastParagraph.length > 20 && lastParagraph.length < 500) {
-        caption = lastParagraph.trim();
+      // Look for the last substantial paragraph (likely the caption)
+      for (let i = paragraphs.length - 1; i >= 0; i--) {
+        const para = paragraphs[i].trim();
+        // Skip if it's too short, too long, or looks like a section header
+        if (para.length > 20 && para.length < 500 && !para.match(/^\d+\./)) {
+          caption = para;
+          break;
+        }
       }
     }
 
     // If still no caption, use the full text (fallback)
-    if (!caption) {
+    if (!caption || caption.length < 10) {
       caption = text.trim();
     }
-
+    
+    // Final cleanup
+    caption = caption.trim();
+    
+    // Remove any leading/trailing markdown or formatting
+    caption = caption.replace(/^[\*\#\-\s]+|[\*\#\-\s]+$/g, '');
+    
     // Fix Instagram handle if it's wrong
     caption = caption.replace(/@GreenhausCannabis/gi, '@greenhaus_cannabis');
+    
+    // Log for debugging
+    console.log(`[Gemini] Extracted caption length: ${caption.length}, preview: ${caption.substring(0, 50)}...`);
 
     return {
       analysis: text,
@@ -232,28 +273,69 @@ Keep the description concise but informative, focusing on elements that would be
     }
 
     // Extract caption from the response
-    const captionMatch = text.match(/A relevant Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n$|$)/i) ||
-                        text.match(/Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n$|$)/i) ||
-                        text.match(/caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n$|$)/i);
+    // Try multiple patterns to catch different formatting styles
+    let caption = "";
     
-    let caption = captionMatch ? captionMatch[1].trim() : "";
+    // Pattern 1: "A relevant Instagram caption for..." or "Instagram caption:"
+    const pattern1 = text.match(/A relevant Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n(?=\d+\.)|$)/i);
+    if (pattern1 && pattern1[1]) {
+      caption = pattern1[1].trim();
+    }
     
-    // If no caption found, try to extract the last paragraph
-    if (!caption) {
+    // Pattern 2: "Instagram caption:" (simpler)
+    if (!caption || caption.length < 10) {
+      const pattern2 = text.match(/Instagram caption[^:]*:\s*([\s\S]+?)(?:\n\n|\n(?=\d+\.)|$)/i);
+      if (pattern2 && pattern2[1]) {
+        caption = pattern2[1].trim();
+      }
+    }
+    
+    // Pattern 3: Look for quoted caption (might be in quotes)
+    if (!caption || caption.length < 10) {
+      const pattern3 = text.match(/caption[^:]*:\s*["']?([\s\S]+?)["']?(?:\n\n|\n(?=\d+\.)|$)/i);
+      if (pattern3 && pattern3[1]) {
+        caption = pattern3[1].trim();
+      }
+    }
+    
+    // Strip markdown formatting if present (**text** becomes text)
+    if (caption) {
+      caption = caption.replace(/\*\*([^*]+)\*\*/g, '$1'); // Remove **bold**
+      caption = caption.replace(/\*([^*]+)\*/g, '$1'); // Remove *italic*
+      caption = caption.replace(/^["']|["']$/g, ''); // Remove surrounding quotes
+      caption = caption.trim();
+    }
+    
+    // If still no good caption, try to extract the last paragraph
+    if (!caption || caption.length < 10) {
       const paragraphs = text.split(/\n\n+/);
-      const lastParagraph = paragraphs[paragraphs.length - 1];
-      if (lastParagraph && lastParagraph.length > 20 && lastParagraph.length < 500) {
-        caption = lastParagraph.trim();
+      // Look for the last substantial paragraph (likely the caption)
+      for (let i = paragraphs.length - 1; i >= 0; i--) {
+        const para = paragraphs[i].trim();
+        // Skip if it's too short, too long, or looks like a section header
+        if (para.length > 20 && para.length < 500 && !para.match(/^\d+\./)) {
+          caption = para;
+          break;
+        }
       }
     }
 
     // If still no caption, use the full text (fallback)
-    if (!caption) {
+    if (!caption || caption.length < 10) {
       caption = text.trim();
     }
-
+    
+    // Final cleanup
+    caption = caption.trim();
+    
+    // Remove any leading/trailing markdown or formatting
+    caption = caption.replace(/^[\*\#\-\s]+|[\*\#\-\s]+$/g, '');
+    
     // Fix Instagram handle if it's wrong
     caption = caption.replace(/@GreenhausCannabis/gi, '@greenhaus_cannabis');
+    
+    // Log for debugging
+    console.log(`[Gemini] Extracted caption length: ${caption.length}, preview: ${caption.substring(0, 50)}...`);
 
     return {
       analysis: text,
