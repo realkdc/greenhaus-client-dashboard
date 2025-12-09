@@ -137,6 +137,17 @@ export default function CaptionGeneratorPage(): JSX.Element {
 
       setGeneratedCaption(data.caption);
 
+      // Clear form fields after successful generation for easy reuse
+      setFiles(null);
+      setGoogleDriveLinks("");
+      setContentName("");
+      
+      // Reset file input element
+      const fileInput = document.getElementById("file-upload") as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = "";
+      }
+
       // Handle usage warnings
       if (data.usageWarning) {
         setUsageWarning(data.usageWarning);

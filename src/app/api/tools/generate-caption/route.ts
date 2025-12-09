@@ -212,7 +212,10 @@ Your task is to analyze the provided content and generate ONE perfect caption th
       userPrompt += `\nNo visual content was successfully processed. Please create a caption based on the description provided.\n`;
     }
 
-    userPrompt += "\nPlease create a caption that follows the GreenHaus brand guidelines perfectly.";
+    userPrompt += "\n\nIMPORTANT: Create a UNIQUE and CREATIVE caption that follows the GreenHaus brand guidelines perfectly. ";
+    userPrompt += "Avoid using repetitive opening phrases like 'psst... your weekend reset' or similar patterns. ";
+    userPrompt += "Each caption should be fresh, original, and tailored specifically to THIS content. ";
+    userPrompt += "Vary your approach - use different hooks, angles, and creative openings for each caption.";
 
     // Update the text content
     messages[1].content[0].text = userPrompt;
