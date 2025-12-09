@@ -128,6 +128,7 @@ IMPORTANT RULES:
 6. Always end with "21+" for age compliance
 7. Use the Hook → Details → Reward → CTA structure
 8. Keep it conversational and friendly, like a knowledgeable budtender friend
+9. NEVER use em dashes (—). Use commas, periods, or regular hyphens (-) instead
 
 Your task is to analyze the provided content and generate ONE perfect caption that follows all these guidelines.`;
 
@@ -215,7 +216,8 @@ Your task is to analyze the provided content and generate ONE perfect caption th
     userPrompt += "\n\nIMPORTANT: Create a UNIQUE and CREATIVE caption that follows the GreenHaus brand guidelines perfectly. ";
     userPrompt += "Avoid using repetitive opening phrases like 'psst... your weekend reset' or similar patterns. ";
     userPrompt += "Each caption should be fresh, original, and tailored specifically to THIS content. ";
-    userPrompt += "Vary your approach - use different hooks, angles, and creative openings for each caption.";
+    userPrompt += "Vary your approach - use different hooks, angles, and creative openings for each caption. ";
+    userPrompt += "NEVER use em dashes (—). Use commas, periods, or regular hyphens (-) instead.";
 
     // Update the text content
     messages[1].content[0].text = userPrompt;
