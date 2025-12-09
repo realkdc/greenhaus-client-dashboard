@@ -209,7 +209,13 @@ Keep the description concise but informative, focusing on elements that would be
     caption = caption.replace(/^(Here is|I've created|Here's) a .*caption.*:?\s*/i, '').trim();
 
     // Final cleanup
-    caption = caption.trim();
+    caption = caption
+      // Strip lines that are only asterisks (leftover markdown)
+      .replace(/^\s*\*+\s*$/gm, '')
+      // Remove lone leading/trailing asterisks
+      .replace(/^\*+\s*/g, '')
+      .replace(/\s*\*+$/g, '')
+      .trim();
     
     // If we accidentally captured the analysis header, try to grab the suggested caption section instead
     if (/^Image Analysis/i.test(caption)) {
@@ -381,7 +387,13 @@ Keep the description concise but informative, focusing on elements that would be
     caption = caption.replace(/^(Here is|I've created|Here's) a .*caption.*:?\s*/i, '').trim();
 
     // Final cleanup
-    caption = caption.trim();
+    caption = caption
+      // Strip lines that are only asterisks (leftover markdown)
+      .replace(/^\s*\*+\s*$/gm, '')
+      // Remove lone leading/trailing asterisks
+      .replace(/^\*+\s*/g, '')
+      .replace(/\s*\*+$/g, '')
+      .trim();
     caption = caption.replace(/@GreenhausCannabis/gi, '@greenhaus_cannabis');
     
     // If we accidentally captured the analysis header, try to grab the suggested caption section instead
