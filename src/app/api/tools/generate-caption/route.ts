@@ -119,16 +119,23 @@ export async function POST(request: NextRequest) {
 BRAND VOICE & STYLE:
 ${JSON.stringify(captionStyleJson, null, 2)}
 
-CRITICAL INSTRUCTIONS - UNDERSTAND THE JSON PATTERNS AND CREATE FRESH CAPTIONS:
-The JSON file above shows you HOW captions should be structured and styled. Your job is to UNDERSTAND these patterns and CREATE NEW, UNIQUE captions that follow the same style - NOT to just copy or select from the examples.
+CRITICAL INSTRUCTIONS - CREATE TRULY UNIQUE CAPTIONS:
+The JSON file above shows you HOW captions should be structured and styled. Your job is to UNDERSTAND the PATTERNS and CREATE COMPLETELY NEW, UNIQUE captions - NEVER copy or reuse exact phrases from the JSON examples.
 
-1. **Hook Pattern**: Study the "headline_hooks" array to understand the style (playful, conversational, with placeholders). Then CREATE a NEW hook in that same style based on the actual content you're analyzing. Don't copy the templates - understand the pattern and create something fresh.
+🚫 FORBIDDEN - DO NOT USE THESE EXACT PHRASES:
+- DO NOT start with "psst..." or "psst…" - this is just an example pattern, create your own opening
+- DO NOT use the exact CTAs from cta_variants - they are examples only, create NEW ones in that style
+- DO NOT copy headline_hooks verbatim - understand the playful, conversational style and create NEW hooks
+- DO NOT reuse the same phrases you've used before - every caption must be completely unique
 
-2. **CTA Pattern**: Study the "cta_variants" to understand the CTA style (friendly, inviting, location-specific, ends with "21+"). Then CREATE a NEW CTA in that same style. Vary the wording while maintaining the same friendly, inviting tone. Examples show the pattern - create new ones following it.
+✅ WHAT TO DO INSTEAD:
+1. **Hook**: Understand the style (playful, conversational, friendly) and CREATE a completely new hook based on what you see in the images. Never use "psst..." or copy any template.
 
-3. **Details & Variables**: Use the "variables" object to understand what types of elements to include (product names, flavor notes, benefits, moments, ritual items). Use these concepts naturally in your caption based on what you see in the images.
+2. **CTA**: Understand the pattern (friendly, inviting, mentions GreenHaus, ends with "21+") and CREATE a brand new CTA every time. Never reuse the same CTA wording.
 
-4. **Hashtag Pattern**: Study the "examples_pool" to understand the hashtag style (brand-focused, location-based, lifestyle-oriented). Select or create ${captionStyleJson.format_rules.hashtags.count} hashtags that match this style.
+3. **Details**: Use the "variables" concepts (product names, flavor notes, benefits, moments) naturally based on the actual images you're analyzing.
+
+4. **Hashtags**: Select ${captionStyleJson.format_rules.hashtags.count} hashtags from the examples_pool or create new ones in that style.
 
 5. **Structure**: Hook → Details → Reward → CTA → Hashtags → "21+"
 
@@ -230,21 +237,25 @@ Your task: ANALYZE the provided images, UNDERSTAND the JSON patterns, then CREAT
       userPrompt += `\n\nIMPORTANT: ${finalImageUrls.length} image(s) are provided above. You MUST carefully analyze these actual images to understand what's in them. The caption must be based on what you SEE in the images, not just the text description.`;
     }
 
-    userPrompt += "\n\nCRITICAL CONSTRUCTION REQUIREMENTS:";
+    userPrompt += "\n\n🚫 CRITICAL - DO NOT REUSE THESE PHRASES:";
+    userPrompt += "\n- NEVER start with 'psst...' or 'psst…' - create a completely different opening";
+    userPrompt += "\n- NEVER copy any headline_hooks from the JSON - they are examples only";
+    userPrompt += "\n- NEVER reuse the exact CTAs from cta_variants - create brand new ones every time";
+    userPrompt += "\n- NEVER use the same hook, CTA, or phrasing you've used before";
+    userPrompt += "\n\n✅ CRITICAL CONSTRUCTION REQUIREMENTS:";
     userPrompt += "\n1. Structure MUST be: Hook → Details → Reward → CTA → Hashtags → 21+";
-    userPrompt += "\n2. Hook: Study the headline_hooks in the JSON to understand the style (playful, conversational, with placeholders). CREATE a NEW hook in that same style based on what you see in the images. Don't copy the templates - understand the pattern and create something fresh.";
-    userPrompt += "\n3. CTA: Study the cta_variants in the JSON to understand the CTA style (friendly, inviting, location-specific). CREATE a NEW CTA in that same style. Vary the wording while maintaining the friendly tone. Examples:";
-    captionStyleJson.cta_variants.forEach((cta: string, i: number) => {
-      userPrompt += `\n   - "${cta}" (study the pattern, create new ones like this)`;
+    userPrompt += "\n2. Hook: Create a BRAND NEW, UNIQUE hook in a playful, conversational style. Base it on what you see in the images. DO NOT use 'psst...' or any template from the JSON.";
+    userPrompt += "\n3. CTA: Create a BRAND NEW, UNIQUE CTA that's friendly and inviting, mentions GreenHaus, and ends with '21+'. DO NOT copy any CTA from the examples. Examples show the STYLE (friendly, location-specific) - create NEW ones in that style:";
+    captionStyleJson.cta_variants.forEach((cta: string) => {
+      userPrompt += `\n   - "${cta}" (STYLE EXAMPLE ONLY - create something NEW like this, not this exact phrase)`;
     });
-    userPrompt += "\n4. Hashtags: Study the examples_pool to understand the hashtag style. Select or create exactly 4 hashtags that match this style.";
+    userPrompt += "\n4. Hashtags: Select exactly 4 hashtags from the examples_pool or create new ones in that style.";
     userPrompt += "\n5. NEVER use em dashes (—). Use commas, periods, or regular hyphens (-) instead.";
     userPrompt += "\n\nCONTENT REQUIREMENTS:";
     userPrompt += "\n- ANALYZE the provided images carefully - what products, scenes, or content do you actually see?";
-    userPrompt += "\n- UNDERSTAND the JSON patterns (how hooks are structured, how CTAs are worded, what tone is used)";
-    userPrompt += "\n- CREATE a completely fresh, unique caption that follows those patterns but is tailored to THIS specific content";
-    userPrompt += "\n- Avoid repetitive phrases - each caption should be unique";
-    userPrompt += "\n- The JSON shows you HOW to write - use that understanding to create something new, not to copy from it";
+    userPrompt += "\n- CREATE a completely fresh, unique caption - every word should be new, not copied from examples";
+    userPrompt += "\n- If you find yourself writing 'psst...' or any phrase from the JSON examples, STOP and create something completely different";
+    userPrompt += "\n- Each caption must be 100% unique - no reused hooks, CTAs, or phrases";
 
     // Update the text content
     messages[1].content[0].text = userPrompt;
