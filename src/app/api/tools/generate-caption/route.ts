@@ -4,6 +4,7 @@ import { put } from '@vercel/blob';
 import captionStyleJson from "@/data/caption-style.json";
 import { extractFileId, downloadDriveFile } from "@/lib/tools/googleDrive";
 import { checkUsageLimit, recordUsage, calculateCost } from "@/lib/usage/tracker";
+import { getRecentPhrasesToAvoid, saveCaptionToHistory } from "@/lib/caption-history";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -237,11 +238,37 @@ Your task: ANALYZE the provided images, UNDERSTAND the JSON patterns, then CREAT
       userPrompt += `\n\nIMPORTANT: ${finalImageUrls.length} image(s) are provided above. You MUST carefully analyze these actual images to understand what's in them. The caption must be based on what you SEE in the images, not just the text description.`;
     }
 
+    // Get recent captions to avoid repetition
+    const recentPhrases = await getRecentPhrasesToAvoid();
+    
     userPrompt += "\n\n🚫 CRITICAL - DO NOT REUSE THESE PHRASES:";
     userPrompt += "\n- NEVER start with 'psst...' or 'psst…' - create a completely different opening";
     userPrompt += "\n- NEVER copy any headline_hooks from the JSON - they are examples only";
     userPrompt += "\n- NEVER reuse the exact CTAs from cta_variants - create brand new ones every time";
     userPrompt += "\n- NEVER use the same hook, CTA, or phrasing you've used before";
+    
+    // Add recent hooks and CTAs to avoid
+    if (recentPhrases.hooks.length > 0) {
+      userPrompt += `\n\n🚫 RECENT HOOKS TO AVOID (do not reuse these exact phrases):`;
+      recentPhrases.hooks.slice(0, 10).forEach((hook, i) => {
+        userPrompt += `\n   ${i + 1}. "${hook}"`;
+      });
+    }
+    
+    if (recentPhrases.ctas.length > 0) {
+      userPrompt += `\n\n🚫 RECENT CTAs TO AVOID (do not reuse these exact phrases):`;
+      recentPhrases.ctas.slice(0, 10).forEach((cta, i) => {
+        userPrompt += `\n   ${i + 1}. "${cta}"`;
+      });
+    }
+    
+    if (recentPhrases.recentCaptions.length > 0) {
+      userPrompt += `\n\n⚠️ RECENT CAPTIONS FOR CONTEXT (avoid similar phrasing):`;
+      recentPhrases.recentCaptions.slice(0, 5).forEach((caption, i) => {
+        userPrompt += `\n   ${i + 1}. "${caption}..."`;
+      });
+      userPrompt += `\n\nYour new caption must be COMPLETELY DIFFERENT from all of these.`;
+    }
     userPrompt += "\n\n✅ CRITICAL CONSTRUCTION REQUIREMENTS:";
     userPrompt += "\n1. Structure MUST be: Hook → Details → Reward → CTA → Hashtags → 21+";
     userPrompt += "\n2. Hook: Create a BRAND NEW, UNIQUE hook in a playful, conversational style. Base it on what you see in the images. DO NOT use 'psst...' or any template from the JSON.";
@@ -305,6 +332,9 @@ Your task: ANALYZE the provided images, UNDERSTAND the JSON patterns, then CREAT
       // Fallback to average cost if token info unavailable
       await recordUsage();
     }
+
+    // Save caption to history to avoid future repetition
+    await saveCaptionToHistory(generatedCaption, finalImageUrls, contentName);
 
     // Get updated usage info to return to user
     const updatedUsageCheck = await checkUsageLimit();
