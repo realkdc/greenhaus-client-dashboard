@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import RequireAuth from "@/components/require-auth";
 import Link from "next/link";
 import { upload } from '@vercel/blob/client';
@@ -24,6 +24,14 @@ export default function CaptionGeneratorPage(): JSX.Element {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [progressLog, setProgressLog] = useState<Array<{ message: string; timestamp: Date; type: 'info' | 'success' | 'error' | 'warning' }>>([]);
+  const progressLogRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll progress log to bottom when new entries are added
+  useEffect(() => {
+    if (progressLogRef.current) {
+      progressLogRef.current.scrollTop = progressLogRef.current.scrollHeight;
+    }
+  }, [progressLog]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -577,7 +585,10 @@ export default function CaptionGeneratorPage(): JSX.Element {
                       </span>
                     )}
                   </div>
-                  <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg bg-white p-4">
+                  <div 
+                    ref={progressLogRef}
+                    className="max-h-64 space-y-2 overflow-y-auto rounded-lg bg-white p-4"
+                  >
                     {progressLog.length === 0 ? (
                       <p className="text-sm text-slate-500">Waiting for updates...</p>
                     ) : (
