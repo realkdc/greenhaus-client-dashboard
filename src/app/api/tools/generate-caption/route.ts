@@ -15,11 +15,11 @@ async function fileToBase64(file: File): Promise<string> {
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
 
-  // AGGRESSIVE compression to stay under 4.5MB Vercel limit
-  // Resize to 512px max width and 60% quality - each image ~50-100KB
+  // EXTREME compression to stay under 4.5MB Vercel limit
+  // Resize to 384px max width and 50% quality - each image ~30-50KB
   const compressed = await sharp(buffer)
-    .resize(512, null, { withoutEnlargement: true })
-    .jpeg({ quality: 60 })
+    .resize(384, null, { withoutEnlargement: true })
+    .jpeg({ quality: 50 })
     .toBuffer();
 
   return compressed.toString("base64");
@@ -29,10 +29,10 @@ async function fileToBase64(file: File): Promise<string> {
 async function bufferToBase64(buffer: Buffer): Promise<string> {
   const sharp = require('sharp');
 
-  // AGGRESSIVE compression for Drive images too
+  // EXTREME compression for Drive images too
   const compressed = await sharp(buffer)
-    .resize(512, null, { withoutEnlargement: true })
-    .jpeg({ quality: 60 })
+    .resize(384, null, { withoutEnlargement: true })
+    .jpeg({ quality: 50 })
     .toBuffer();
 
   return compressed.toString("base64");
@@ -187,8 +187,9 @@ Your task is to analyze the provided content and generate ONE perfect caption th
     }
 
     // Add all collected images to the message
-    // For carousels, we want to support up to 10 slides
-    const maxImages = contentType === "Carousel" ? 12 : 10;
+    // TEMPORARY: Limit to 3 images max due to Vercel 4.5MB payload limit
+    // Even with compression, large images can exceed this
+    const maxImages = 3;
     for (const image of imagesToProcess.slice(0, maxImages)) {
       messages[1].content.push({
         type: "image_url",
