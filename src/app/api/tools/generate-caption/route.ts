@@ -195,12 +195,16 @@ Your task is to analyze the provided content and generate ONE perfect caption th
     // Add all collected images to the message
     // We can support more images now since we are sending URLs
     const maxImages = 10;
-    for (const url of finalImageUrls.slice(0, maxImages)) {
+    const imagesToSend = finalImageUrls.slice(0, maxImages);
+    
+    console.log(`[Caption Generator] Sending ${imagesToSend.length} images to OpenAI (out of ${finalImageUrls.length} total)`);
+    
+    for (const url of imagesToSend) {
       messages[1].content.push({
         type: "image_url",
         image_url: {
           url: url,
-          detail: "low", // Use "low" for faster processing and lower cost
+          detail: "high", // Use "high" for better image analysis - captions need accurate visual understanding
         },
       });
     }
@@ -211,6 +215,9 @@ Your task is to analyze the provided content and generate ONE perfect caption th
 
     if (finalImageUrls.length === 0) {
       userPrompt += `\nNo visual content was successfully processed. Please create a caption based on the description provided.\n`;
+    } else {
+      // Emphasize that images were provided and must be analyzed
+      userPrompt += `\n\nIMPORTANT: ${finalImageUrls.length} image(s) are provided above. You MUST carefully analyze these actual images to understand what's in them. The caption must be based on what you SEE in the images, not just the text description.`;
     }
 
     userPrompt += "\n\nCRITICAL FORMATTING REQUIREMENTS:";
@@ -221,6 +228,7 @@ Your task is to analyze the provided content and generate ONE perfect caption th
     userPrompt += "\n- Create a UNIQUE and CREATIVE caption tailored specifically to THIS content";
     userPrompt += "\n- Avoid repetitive opening phrases like 'psst... your weekend reset'";
     userPrompt += "\n- Vary your approach - use different hooks, angles, and creative openings";
+    userPrompt += "\n- Base the caption on what you ACTUALLY see in the provided images - analyze them carefully";
 
     // Update the text content
     messages[1].content[0].text = userPrompt;
