@@ -33,7 +33,7 @@ async function generateCaptionWithRetry(messages: any[]) {
         return await openai.chat.completions.create({
           model,
           messages,
-          // No token limit - let the model generate the full caption naturally
+          max_completion_tokens: 4096, // Explicitly set high limit (model supports up to 128k, but 4k is plenty for captions)
           // temperature is not supported for gpt-5-mini (only default value of 1)
         });
       } catch (error: any) {
@@ -221,9 +221,16 @@ Your task is to analyze the provided content and generate ONE perfect caption th
     const completion = await generateCaptionWithRetry(messages);
 
     // Log the full response for debugging
-    console.log("OpenAI completion response:", JSON.stringify(completion, null, 2));
     console.log("Token usage:", completion.usage);
     console.log("Finish reason:", completion.choices[0]?.finish_reason);
+    console.log("Prompt tokens:", completion.usage?.prompt_tokens);
+    console.log("Completion tokens:", completion.usage?.completion_tokens);
+    console.log("Total tokens:", completion.usage?.total_tokens);
+    
+    // Check if we're hitting input token limits
+    if (completion.usage?.prompt_tokens && completion.usage.prompt_tokens > 300000) {
+      console.warn("WARNING: Prompt tokens very high:", completion.usage.prompt_tokens);
+    }
 
     const generatedCaption = completion.choices[0]?.message?.content?.trim();
 
