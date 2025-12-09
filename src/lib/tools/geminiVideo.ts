@@ -131,43 +131,77 @@ Keep the description concise but informative, focusing on elements that would be
     }
     
     // Log raw text for debugging
-    console.log(`[Gemini Raw Image Analysis]: ${text.substring(0, 200)}...`);
+    console.log(`[Gemini Raw Image Analysis]: ${text.substring(0, 300)}...`);
 
     // Extract caption from the response
     let caption = "";
-    
-    // Strategy 1: Explicit markers (most reliable)
-    // Matches: "Instagram caption: ..." or "Caption: ..."
-    const markerRegex = /(?:Instagram caption|Caption|Relevant caption)[^:]*:\s*([\s\S]+)/i;
-    const match = text.match(markerRegex);
-    if (match && match[1]) {
-        caption = match[1].trim();
+
+    // Store full analysis separately
+    const fullAnalysis = text;
+
+    // Strategy 1: Look for "**Instagram Caption:**" with markdown bold formatting
+    const instagramCaptionMatch = text.match(/\*\*Instagram Caption:\*\*\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
+    if (instagramCaptionMatch && instagramCaptionMatch[1]) {
+        caption = instagramCaptionMatch[1].trim();
+        console.log('[Gemini] Strategy 1 matched: **Instagram Caption:**');
     }
-    
-    // Strategy 2: If no marker, look for the last paragraph if the text is long
+
+    // Strategy 2: Look for "Instagram Caption:" without markdown
+    if (!caption || caption.length < 10) {
+        const captionMatch = text.match(/Instagram Caption:\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
+        if (captionMatch && captionMatch[1]) {
+            caption = captionMatch[1].trim();
+            console.log('[Gemini] Strategy 2 matched: Instagram Caption: (no markdown)');
+        }
+    }
+
+    // Strategy 3: Look for just "Caption:"
+    if (!caption || caption.length < 10) {
+        const simpleCaptionMatch = text.match(/(?:^|\n)Caption:\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
+        if (simpleCaptionMatch && simpleCaptionMatch[1]) {
+            caption = simpleCaptionMatch[1].trim();
+            console.log('[Gemini] Strategy 3 matched: Caption:');
+        }
+    }
+
+    // Strategy 4: Find the section that looks like a caption (has emojis, hashtags, or @mentions)
+    if (!caption || caption.length < 10) {
+        const sections = text.split(/\n\n+/);
+        for (let i = sections.length - 1; i >= 0; i--) {
+            const section = sections[i].trim();
+            if (section.includes('#') || section.includes('@') || /[\u{1F300}-\u{1F9FF}]/u.test(section)) {
+                caption = section;
+                console.log('[Gemini] Strategy 4 matched: found section with emoji/hashtag/@mention');
+                break;
+            }
+        }
+    }
+
+    // Strategy 5: Fallback - take the last paragraph
     if (!caption || caption.length < 10) {
         const paragraphs = text.split(/\n\n+/);
         if (paragraphs.length > 1) {
             caption = paragraphs[paragraphs.length - 1].trim();
+        } else {
+            caption = text.trim();
         }
-    }
-    
-    // Strategy 3: Fallback to full text if it's short (likely just the caption)
-    if (!caption || caption.length < 10) {
-        caption = text.trim();
+        console.log('[Gemini] Strategy 5 (fallback): last paragraph');
     }
 
-    // Cleanup: Remove quotes and markdown block symbols
+    // Cleanup: Remove any remaining labels/headers
+    caption = caption.replace(/^(Image Description:|Video Description:|Instagram Caption:|Caption:|Relevant caption:)\s*/gi, '');
+
+    // Cleanup: Remove quotes and markdown
     caption = caption.replace(/^["']|["']$/g, '');
     caption = caption.replace(/\*\*([^*]+)\*\*/g, '$1'); // bold
     caption = caption.replace(/\*([^*]+)\*/g, '$1');     // italic
-    
-    // Cleanup: Remove "Here is a caption..." prefixes if captured
-    caption = caption.replace(/^(Here is|I've created|Here's) a .*caption.*:?/i, '').trim();
+
+    // Cleanup: Remove "Here is a caption..." prefixes
+    caption = caption.replace(/^(Here is|I've created|Here's) a .*caption.*:?\s*/i, '').trim();
 
     // Final cleanup
     caption = caption.trim();
-    
+
     // Fix Instagram handle
     caption = caption.replace(/@GreenhausCannabis/gi, '@greenhaus_cannabis');
     
@@ -250,36 +284,74 @@ Keep the description concise but informative, focusing on elements that would be
     }
 
     // Log raw text for debugging
-    console.log(`[Gemini Raw Video Analysis]: ${text.substring(0, 200)}...`);
+    console.log(`[Gemini Raw Video Analysis]: ${text.substring(0, 300)}...`);
 
     // Extract caption from the response
     let caption = "";
-    
-    // Strategy 1: Explicit markers
-    const markerRegex = /(?:Instagram caption|Caption|Relevant caption)[^:]*:\s*([\s\S]+)/i;
-    const match = text.match(markerRegex);
-    if (match && match[1]) {
-        caption = match[1].trim();
+
+    // Strategy 1: Look for "**Instagram Caption:**" with markdown bold formatting
+    const instagramCaptionMatch = text.match(/\*\*Instagram Caption:\*\*\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
+    if (instagramCaptionMatch && instagramCaptionMatch[1]) {
+        caption = instagramCaptionMatch[1].trim();
+        console.log('[Gemini] Strategy 1 matched: **Instagram Caption:**');
     }
-    
-    // Strategy 2: Last paragraph
+
+    // Strategy 2: Look for "Instagram Caption:" without markdown
+    if (!caption || caption.length < 10) {
+        const captionMatch = text.match(/Instagram Caption:\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
+        if (captionMatch && captionMatch[1]) {
+            caption = captionMatch[1].trim();
+            console.log('[Gemini] Strategy 2 matched: Instagram Caption: (no markdown)');
+        }
+    }
+
+    // Strategy 3: Look for just "Caption:"
+    if (!caption || caption.length < 10) {
+        const simpleCaptionMatch = text.match(/(?:^|\n)Caption:\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
+        if (simpleCaptionMatch && simpleCaptionMatch[1]) {
+            caption = simpleCaptionMatch[1].trim();
+            console.log('[Gemini] Strategy 3 matched: Caption:');
+        }
+    }
+
+    // Strategy 4: Find the section that looks like a caption (has emojis, hashtags, or @mentions)
+    if (!caption || caption.length < 10) {
+        const sections = text.split(/\n\n+/);
+        for (let i = sections.length - 1; i >= 0; i--) {
+            const section = sections[i].trim();
+            if (section.includes('#') || section.includes('@') || /[\u{1F300}-\u{1F9FF}]/u.test(section)) {
+                caption = section;
+                console.log('[Gemini] Strategy 4 matched: found section with emoji/hashtag/@mention');
+                break;
+            }
+        }
+    }
+
+    // Strategy 5: Fallback - take the last paragraph
     if (!caption || caption.length < 10) {
         const paragraphs = text.split(/\n\n+/);
         if (paragraphs.length > 1) {
             caption = paragraphs[paragraphs.length - 1].trim();
+        } else {
+            caption = text.trim();
         }
-    }
-    
-    // Strategy 3: Full text fallback
-    if (!caption || caption.length < 10) {
-        caption = text.trim();
+        console.log('[Gemini] Strategy 5 (fallback): last paragraph');
     }
 
-    // Cleanup
+    // Cleanup: Remove any remaining labels/headers (with or without asterisks)
+    caption = caption.replace(/^(\*{0,2}Image Description:\*{0,2}|\*{0,2}Video Description:\*{0,2}|\*{0,2}Instagram Caption:\*{0,2}|\*{0,2}Caption:\*{0,2}|\*{0,2}Relevant caption:\*{0,2})\s*/gi, '');
+
+    // Cleanup: Remove quotes and markdown formatting
     caption = caption.replace(/^["']|["']$/g, '');
-    caption = caption.replace(/\*\*([^*]+)\*\*/g, '$1');
-    caption = caption.replace(/\*([^*]+)\*/g, '$1');
-    caption = caption.replace(/^(Here is|I've created|Here's) a .*caption.*:?/i, '').trim();
+    caption = caption.replace(/\*\*([^*]+)\*\*/g, '$1'); // bold
+    caption = caption.replace(/\*([^*]+)\*/g, '$1');     // italic
+
+    // Cleanup: Remove escaped characters that shouldn't be there
+    caption = caption.replace(/\\#/g, '#');  // \# -> #
+    caption = caption.replace(/\\\//g, '/'); // \/ -> /
+
+    // Cleanup: Remove "Here is a caption..." prefixes
+    caption = caption.replace(/^(Here is|I've created|Here's) a .*caption.*:?\s*/i, '').trim();
 
     // Final cleanup
     caption = caption.trim();
