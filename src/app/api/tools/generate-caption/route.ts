@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
         try {
           const fileId = extractFileId(link);
           if (!fileId) {
-            userPrompt += `\nNote: Invalid Google Drive link: ${link}\n`;
+            console.log(`[Caption Generator] Invalid Google Drive link: ${link}`);
             continue;
           }
 
@@ -98,13 +98,13 @@ export async function POST(request: NextRequest) {
           console.error("Error downloading from Drive:", error);
           const errorMessage = error?.message || "Unknown error";
           
-          // Provide user-friendly error messages for common issues
+          // Log error messages for debugging
           if (errorMessage.includes("invalid_grant") || errorMessage.includes("account not found")) {
-            userPrompt += `\nNote: Google Drive authentication error. Please check that the Google Drive service account credentials are properly configured in environment variables (GOOGLE_DRIVE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY).\n`;
+            console.error(`[Caption Generator] Google Drive authentication error for ${link}: ${errorMessage}`);
           } else if (errorMessage.includes("permission") || errorMessage.includes("access")) {
-            userPrompt += `\nNote: Could not access file from Google Drive link: ${link}. The file may not be shared with the service account or the link may be invalid.\n`;
+            console.error(`[Caption Generator] Could not access file from Google Drive link: ${link}. The file may not be shared with the service account or the link may be invalid.`);
           } else {
-            userPrompt += `\nNote: Could not access file from link: ${link}. ${errorMessage}\n`;
+            console.error(`[Caption Generator] Could not access file from link: ${link}. ${errorMessage}`);
           }
         }
       }
