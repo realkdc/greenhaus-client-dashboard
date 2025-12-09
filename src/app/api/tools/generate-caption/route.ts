@@ -220,10 +220,28 @@ Your task is to analyze the provided content and generate ONE perfect caption th
     // Call OpenAI with retry/backoff to survive transient rate limits
     const completion = await generateCaptionWithRetry(messages);
 
+    // Log the full response for debugging
+    console.log("OpenAI completion response:", JSON.stringify(completion, null, 2));
+
     const generatedCaption = completion.choices[0]?.message?.content?.trim();
 
     if (!generatedCaption) {
-      throw new Error("No caption generated");
+      console.error("No caption in response. Full response:", completion);
+      console.error("Choices:", completion.choices);
+      console.error("First choice:", completion.choices?.[0]);
+      console.error("Message:", completion.choices?.[0]?.message);
+      
+      // Return more details for debugging
+      const debugInfo = {
+        hasChoices: !!completion.choices,
+        choicesLength: completion.choices?.length,
+        firstChoice: completion.choices?.[0],
+        finishReason: completion.choices?.[0]?.finish_reason,
+        messageRole: completion.choices?.[0]?.message?.role,
+        contentType: typeof completion.choices?.[0]?.message?.content,
+        contentValue: completion.choices?.[0]?.message?.content,
+      };
+      throw new Error(`No caption generated. Debug: ${JSON.stringify(debugInfo)}`);
     }
 
     // Record usage after successful generation
