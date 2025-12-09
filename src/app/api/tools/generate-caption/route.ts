@@ -33,7 +33,7 @@ async function generateCaptionWithRetry(messages: any[]) {
         return await openai.chat.completions.create({
           model,
           messages,
-          max_completion_tokens: 500, // gpt-5-mini uses max_completion_tokens instead of max_tokens
+          max_completion_tokens: 2000, // Increased from 500 - vision prompts need more room for completion
           // temperature is not supported for gpt-5-mini (only default value of 1)
         });
       } catch (error: any) {
@@ -222,6 +222,8 @@ Your task is to analyze the provided content and generate ONE perfect caption th
 
     // Log the full response for debugging
     console.log("OpenAI completion response:", JSON.stringify(completion, null, 2));
+    console.log("Token usage:", completion.usage);
+    console.log("Finish reason:", completion.choices[0]?.finish_reason);
 
     const generatedCaption = completion.choices[0]?.message?.content?.trim();
 
