@@ -199,6 +199,7 @@ export async function applyTexturesWithSharp(
       const textureBuffer = await sharp(buf).resize(width, height, { fit: 'contain' }).toBuffer();
       
       // Calculate position based on gravity
+      // Note: Sharp composite uses top/left as the anchor point, so we position at edges/corners
       let top = 0;
       let left = 0;
       if (guide.position.gravity) {
@@ -210,7 +211,7 @@ export async function applyTexturesWithSharp(
             top = 0; left = Math.round(width / 2);
             break;
           case 'northeast':
-            top = 0; left = width;
+            top = 0; left = width - 100; // Offset from edge for corner placement
             break;
           case 'west':
             top = Math.round(height / 2); left = 0;
@@ -219,16 +220,16 @@ export async function applyTexturesWithSharp(
             top = Math.round(height / 2); left = Math.round(width / 2);
             break;
           case 'east':
-            top = Math.round(height / 2); left = width;
+            top = Math.round(height / 2); left = width - 100;
             break;
           case 'southwest':
-            top = height; left = 0;
+            top = height - 100; left = 0;
             break;
           case 'south':
-            top = height; left = Math.round(width / 2);
+            top = height - 100; left = Math.round(width / 2);
             break;
           case 'southeast':
-            top = height; left = width;
+            top = height - 100; left = width - 100;
             break;
           default:
             top = Math.round(height / 2); left = Math.round(width / 2);
