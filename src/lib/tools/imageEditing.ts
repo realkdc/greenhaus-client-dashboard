@@ -115,13 +115,7 @@ export async function applyTexturesWithSharp(
     for (let i = 0; i < textureBuffers.length; i++) {
       const buf = textureBuffers[i];
       const textureName = (textureNames[i] || "").toLowerCase();
-
       const isNoise = textureName.includes("noise") || textureName.includes("grain");
-      
-      // For grain, use a two-step process: composite with soft-light, but at higher opacity
-      // to match Canvas behavior (Canvas soft-light is stronger than Sharp's)
-      const flareS = Math.max(0, Math.min(strengths?.flare ?? 0.6, 1));
-      const grainS = Math.max(0, Math.min(strengths?.grain ?? 0.25, 1));
       
       if (isNoise) {
         // Grain: Use soft-light blend, but boost the opacity range to match Canvas preview
