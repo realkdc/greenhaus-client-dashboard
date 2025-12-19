@@ -251,12 +251,12 @@ export default function PhotoEditorPage() {
                 const isNoise = texture.id.startsWith("noise");
                 const flareS = Math.max(0, Math.min(flareStrength / 100, 1));
                 const grainS = Math.max(0, Math.min(grainStrength / 100, 1));
-                // Light flares: screen, Grain: overlay (very subtle)
-                ctx.globalCompositeOperation = isNoise ? "overlay" : "screen";
-                // Grain can be turned up independently now
+                // Match server-side: Light flares = screen, Grain = soft-light (doesn't darken)
+                ctx.globalCompositeOperation = isNoise ? "soft-light" : "screen";
+                // Match server-side opacity calculations exactly
                 ctx.globalAlpha = isNoise
-                  ? (0.02 + 0.28 * grainS)   // 2% -> 30%
-                  : (0.15 + 0.75 * flareS);  // 15% -> 90%
+                  ? (0.05 + 0.45 * grainS)   // 5% -> 50% (matches server)
+                  : (0.15 + 0.75 * flareS);  // 15% -> 90% (matches server)
                 ctx.drawImage(texImg, 0, 0, canvas.width, canvas.height);
                 ctx.globalCompositeOperation = "source-over";
                 ctx.globalAlpha = 1.0;

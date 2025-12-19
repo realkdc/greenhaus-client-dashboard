@@ -117,10 +117,12 @@ export async function applyTexturesWithSharp(
       const textureName = (textureNames[i] || "").toLowerCase();
 
       const isNoise = textureName.includes("noise") || textureName.includes("grain");
-      const blend: "screen" | "overlay" = isNoise ? "overlay" : "screen";
-      // Separate strength controls
+      // Use "soft-light" for grain - shows texture without darkening like "overlay" does
+      // "soft-light" preserves the grain pattern while maintaining image brightness
+      const blend: "screen" | "soft-light" = isNoise ? "soft-light" : "screen";
+      // Separate strength controls - grain can be stronger now since soft-light won't darken
       const opacity = isNoise
-        ? (0.02 + 0.28 * grainS)   // 2% -> 30%
+        ? (0.05 + 0.45 * grainS)   // 5% -> 50% (soft-light is gentler, can be stronger)
         : (0.15 + 0.75 * flareS);  // 15% -> 90%
       
       // Resize texture to match base image, then apply global opacity by scaling alpha.
