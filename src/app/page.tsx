@@ -8,7 +8,9 @@ export default function Home(): JSX.Element {
   const [showWelcome, setShowWelcome] = useState(true);
 
   useEffect(() => {
-    // Check if user has already entered in this session
+    // Check if user has already entered in this browser session
+    // sessionStorage persists only for the current browser tab/window session
+    // When the browser is closed, it will show again on next visit
     const entered = sessionStorage.getItem("greenhaus-entered");
     if (entered === "true") {
       setShowWelcome(false);

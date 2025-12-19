@@ -47,10 +47,23 @@ function QRModal({ ambassador, isOpen, onClose, qrType }: QRModalProps) {
 
   const generateQR = async () => {
     setLoading(true);
+    setQrDataUrl(''); // Clear previous QR code
     try {
-      const url = qrType === "staff" ? ambassador.qrUrlStaff : ambassador.qrUrlPublic;
+      // Get URL from ambassador data, or construct it if missing
+      let url = qrType === "staff" ? ambassador.qrUrlStaff : ambassador.qrUrlPublic;
+      
+      // If URL is missing, construct it from the code
+      if (!url && ambassador.code) {
+        const siteBase = process.env.NEXT_PUBLIC_SITE_BASE || 'https://greenhaus-site.vercel.app';
+        if (qrType === "staff") {
+          url = `${siteBase}/s/${ambassador.code}`;
+        } else {
+          url = `${siteBase}/r/${ambassador.code}`;
+        }
+      }
+      
       if (!url) {
-        throw new Error('QR URL not available');
+        throw new Error('QR URL not available - missing code or site base URL');
       }
       
       const qrDataUrl = await QRCode.toDataURL(url, {
@@ -64,6 +77,7 @@ function QRModal({ ambassador, isOpen, onClose, qrType }: QRModalProps) {
       setQrDataUrl(qrDataUrl);
     } catch (error) {
       console.error('Error generating QR code:', error);
+      setQrDataUrl(''); // Ensure it's cleared on error
     } finally {
       setLoading(false);
     }
@@ -110,7 +124,7 @@ function QRModal({ ambassador, isOpen, onClose, qrType }: QRModalProps) {
         
         <div className="text-center">
           <p className="text-sm text-gray-600 mb-4">
-            Code: <span className="font-mono font-semibold">{ambassador.code}</span>
+            Code: <span className="font-mono font-semibold">{ambassador.code || 'N/A'}</span>
           </p>
           
           {loading ? (
@@ -136,8 +150,14 @@ function QRModal({ ambassador, isOpen, onClose, qrType }: QRModalProps) {
               </div>
             </div>
           ) : (
-            <div className="w-64 h-64 mx-auto flex items-center justify-center text-gray-500">
-              Failed to generate QR code
+            <div className="w-64 h-64 mx-auto flex flex-col items-center justify-center text-center space-y-2 text-gray-500">
+              <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="font-medium">Failed to generate QR code</p>
+              <p className="text-xs text-gray-400">
+                {!ambassador.code ? 'Missing ambassador code' : 'Please try again or contact support'}
+              </p>
             </div>
           )}
         </div>
@@ -589,26 +609,35 @@ export default function AmbassadorsPage() {
       const rawData = await response.json();
       
       // Map data to ensure all fields exist
-      const mappedData = rawData.map((data: any) => ({
-        id: data.id,
-        firstName: data.firstName || data.name?.split(' ')[0] || '',
-        lastName: data.lastName || data.name?.split(' ').slice(1).join(' ') || '',
-        email: data.email || undefined,
-        handle: data.handle || undefined,
-        tier: data.tier || 'seed',
-        code: data.code || '',
-        qrUrl: data.qrUrl || '',
-        qrType: data.qrType || "public",
-        qrUrlPublic: data.qrUrlPublic || data.qrUrl || '',
-        qrUrlStaff: data.qrUrlStaff || undefined,
-        scanCount: data.scanCount || 0,
-        scanCountPublic: data.scanCountPublic || 0,
-        scanCountStaff: data.scanCountStaff || 0,
-        orders: data.orders || 0,
-        points: data.points || 0,
-        createdAt: data.createdAt || null,
-        createdBy: data.createdBy || '',
-      }));
+      const siteBase = process.env.NEXT_PUBLIC_SITE_BASE || 'https://greenhaus-site.vercel.app';
+      const mappedData = rawData.map((data: any) => {
+        const code = data.code || '';
+        const qrType = data.qrType || "public";
+        // Construct QR URLs if missing
+        const qrUrlPublic = data.qrUrlPublic || data.qrUrl || (code ? `${siteBase}/r/${code}` : '');
+        const qrUrlStaff = data.qrUrlStaff || (qrType === "staff" && code ? `${siteBase}/s/${code}` : undefined);
+        
+        return {
+          id: data.id,
+          firstName: data.firstName || data.name?.split(' ')[0] || '',
+          lastName: data.lastName || data.name?.split(' ').slice(1).join(' ') || '',
+          email: data.email || undefined,
+          handle: data.handle || undefined,
+          tier: data.tier || 'seed',
+          code: code,
+          qrUrl: data.qrUrl || qrUrlPublic,
+          qrType: qrType,
+          qrUrlPublic: qrUrlPublic,
+          qrUrlStaff: qrUrlStaff,
+          scanCount: data.scanCount || 0,
+          scanCountPublic: data.scanCountPublic || 0,
+          scanCountStaff: data.scanCountStaff || 0,
+          orders: data.orders || 0,
+          points: data.points || 0,
+          createdAt: data.createdAt || null,
+          createdBy: data.createdBy || '',
+        };
+      });
       
       setAmbassadors(mappedData);
       setAmbassadorsLoading(false);
