@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import sharp from "sharp";
 import { applyWarmFilter } from "./lightroomPreset";
 
 function getGeminiClient() {
@@ -64,17 +65,105 @@ export async function editImageWithGemini(
 }
 
 /**
- * Fallback for applying textures using Sharp if Gemini image output is unavailable.
+ * Uses Gemini to analyze image and textures, then returns intelligent placement instructions
+ */
+interface TextureGuidance {
+  blend: string;
+  opacity: number;
+  position: { x?: number; y?: number; gravity?: string };
+}
+
+async function getGeminiTextureGuidance(
+  imageBuffer: Buffer,
+  textureBuffers: Buffer[],
+  textureNames: string[]
+): Promise<TextureGuidance[]> {
+  try {
+    const genAI = getGeminiClient();
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+    
+    // Build parts array - Gemini requires separate objects for images and text
+    const parts: any[] = [
+      {
+        inlineData: {
+          data: imageBuffer.toString("base64"),
+          mimeType: "image/jpeg",
+        },
+      },
+    ];
+    
+    // Add each texture as separate image part
+    textureBuffers.forEach((buf, i) => {
+      parts.push({
+        inlineData: {
+          data: buf.toString("base64"),
+          mimeType: "image/png",
+        },
+      });
+      parts.push({ text: `Texture ${i + 1}: ${textureNames[i] || 'overlay'}` });
+    });
+    
+    // Add the main prompt
+    parts.push({
+      text: `Analyze this photo and the ${textureBuffers.length} texture overlay(s) provided. 
+
+Determine the best way to apply each texture overlay to enhance the photo while maintaining a professional, natural look. Consider:
+1. Where each texture should be placed (corners, edges, center, specific areas)
+2. What opacity level would look best (0.0 to 1.0, typically 0.3-0.7 for subtle effects)
+3. What blend mode would work best (screen for light flares, overlay for noise/grain, multiply for dark textures, normal for full coverage)
+
+Return ONLY a valid JSON array with this exact structure (no markdown, no code blocks, just raw JSON):
+[
+  {
+    "blend": "screen|overlay|multiply|normal",
+    "opacity": 0.6,
+    "position": { "gravity": "north|south|east|west|center|northeast|northwest|southeast|southwest" }
+  }
+]
+
+Each object in the array corresponds to each texture in order. Use "gravity" for positioning relative to edges/corners.`,
+    });
+
+    const result = await model.generateContent(parts);
+    const response = await result.response;
+    const text = response.text();
+    
+    // Extract JSON from response (handle markdown code blocks if present)
+    let jsonText = text.trim();
+    jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    
+    // Try to find JSON array in the response
+    const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      jsonText = jsonMatch[0];
+    }
+    
+    const guidance = JSON.parse(jsonText);
+    return guidance;
+  } catch (error) {
+    console.error("Error getting Gemini guidance, using defaults:", error);
+    // Return sensible defaults
+    return textureBuffers.map(() => ({
+      blend: 'screen',
+      opacity: 0.6,
+      position: { gravity: 'center' }
+    }));
+  }
+}
+
+/**
+ * Applies textures intelligently using Gemini guidance
  */
 export async function applyTexturesWithSharp(
   imageBuffer: Buffer,
   textureBuffers: Buffer[],
   applyWarm: boolean = true,
   targetWidth?: number,
-  targetHeight?: number
+  targetHeight?: number,
+  textureNames: string[] = []
 ): Promise<Buffer> {
   // Auto-orient based on EXIF to fix rotation issues
-  let image = sharp(imageBuffer).rotate(); // .rotate() without args auto-rotates based on EXIF
+  let image = sharp(imageBuffer).rotate();
   
   if (applyWarm) {
     const warmBuffer = await applyWarmFilter(imageBuffer);
@@ -84,26 +173,86 @@ export async function applyTexturesWithSharp(
   // Resize to target dimensions if provided (for aspect ratio)
   if (targetWidth && targetHeight) {
     image = image.resize(targetWidth, targetHeight, {
-      fit: 'cover', // Crop to fit if needed
+      fit: 'cover',
       position: 'center'
     });
   }
   
-  // Apply textures
+  const baseBuffer = await image.toBuffer();
+  const metadata = await sharp(baseBuffer).metadata();
+  const width = metadata.width || 1080;
+  const height = metadata.height || 1080;
+  
+  // Get intelligent guidance from Gemini
+  const guidance = await getGeminiTextureGuidance(imageBuffer, textureBuffers, textureNames);
+  
+  // Apply textures with Gemini's guidance
   if (textureBuffers.length > 0) {
-    const baseBuffer = await image.toBuffer();
-    const overlays = textureBuffers.map(buf => ({
-      input: buf,
-      blend: 'screen' as const, // Textures like light flares usually work best with screen/overlay
-      opacity: 0.6
-    }));
+    const overlayPromises = textureBuffers.map(async (buf, i) => {
+      const guide = guidance[i] || {
+        blend: 'screen',
+        opacity: 0.6,
+        position: { gravity: 'center' }
+      };
+      
+      // Resize texture to match base image
+      const textureBuffer = await sharp(buf).resize(width, height, { fit: 'contain' }).toBuffer();
+      
+      // Calculate position based on gravity
+      let top = 0;
+      let left = 0;
+      if (guide.position.gravity) {
+        switch (guide.position.gravity) {
+          case 'northwest':
+            top = 0; left = 0;
+            break;
+          case 'north':
+            top = 0; left = Math.round(width / 2);
+            break;
+          case 'northeast':
+            top = 0; left = width;
+            break;
+          case 'west':
+            top = Math.round(height / 2); left = 0;
+            break;
+          case 'center':
+            top = Math.round(height / 2); left = Math.round(width / 2);
+            break;
+          case 'east':
+            top = Math.round(height / 2); left = width;
+            break;
+          case 'southwest':
+            top = height; left = 0;
+            break;
+          case 'south':
+            top = height; left = Math.round(width / 2);
+            break;
+          case 'southeast':
+            top = height; left = width;
+            break;
+          default:
+            top = Math.round(height / 2); left = Math.round(width / 2);
+        }
+      } else {
+        top = guide.position.y || 0;
+        left = guide.position.x || 0;
+      }
+      
+      return {
+        input: textureBuffer,
+        blend: (guide.blend || 'screen') as 'screen' | 'overlay' | 'multiply' | 'normal',
+        top: Math.max(0, Math.min(top, height)),
+        left: Math.max(0, Math.min(left, width)),
+        opacity: Math.max(0, Math.min(guide.opacity || 0.6, 1.0))
+      };
+    });
+    
+    const overlays = await Promise.all(overlayPromises);
     
     return await sharp(baseBuffer)
       .composite(overlays)
       .toBuffer();
   }
   
-  return await image.toBuffer();
+  return baseBuffer;
 }
-
-import sharp from "sharp";

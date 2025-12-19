@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
     const imageMetadata = await sharp(imageBuffer).metadata();
 
     const textureBuffers: Buffer[] = [];
+    const textureNames: string[] = [];
     if (textureUrls && Array.isArray(textureUrls)) {
       for (const url of textureUrls) {
         try {
@@ -39,6 +40,9 @@ export async function POST(request: NextRequest) {
             continue;
           }
           textureBuffers.push(Buffer.from(await texRes.arrayBuffer()));
+          // Extract texture name from URL for Gemini context
+          const name = decodedUrl.split('/').pop()?.replace(/.png$/, '').replace(/_/g, ' ') || 'texture';
+          textureNames.push(name);
         } catch (err) {
           console.error(`Error loading texture ${url}:`, err);
           // Continue with other textures even if one fails
@@ -77,14 +81,14 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // 4. Process image (Using Sharp fallback for now as primary, as current Gemini SDK is text-focused)
-    // We can still use Gemini to "decide" parameters if we wanted to be fancy
+    // 4. Process image with intelligent Gemini-guided texture placement
     const processedBuffer = await applyTexturesWithSharp(
       imageBuffer,
       textureBuffers,
       applyWarmFilter,
       targetWidth,
-      targetHeight
+      targetHeight,
+      textureNames
     );
 
     // 4. Upload result to Vercel Blob
