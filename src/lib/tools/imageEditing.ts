@@ -117,40 +117,82 @@ export async function applyTexturesWithSharp(
       const textureName = (textureNames[i] || "").toLowerCase();
 
       const isNoise = textureName.includes("noise") || textureName.includes("grain");
-      // Use "soft-light" for grain - shows texture without darkening like "overlay" does
-      // "soft-light" preserves the grain pattern while maintaining image brightness
-      const blend: "screen" | "soft-light" = isNoise ? "soft-light" : "screen";
-      // Separate strength controls - grain can be stronger now since soft-light won't darken
-      const opacity = isNoise
-        ? (0.05 + 0.45 * grainS)   // 5% -> 50% (soft-light is gentler, can be stronger)
-        : (0.15 + 0.75 * flareS);  // 15% -> 90%
       
-      // Resize texture to match base image, then apply global opacity by scaling alpha.
-      // This avoids the previous mask/composite issues and keeps the output clean.
-      const { data, info } = await sharp(buf)
-        .resize(width, height, { fit: "cover" })
-        .ensureAlpha()
-        .raw()
-        .toBuffer({ resolveWithObject: true });
+      // For grain, use a two-step process: composite with soft-light, but at higher opacity
+      // to match Canvas behavior (Canvas soft-light is stronger than Sharp's)
+      const flareS = Math.max(0, Math.min(strengths?.flare ?? 0.6, 1));
+      const grainS = Math.max(0, Math.min(strengths?.grain ?? 0.25, 1));
+      
+      if (isNoise) {
+        // Grain: Use soft-light blend, but boost the opacity range to match Canvas preview
+        // Sharp's soft-light is weaker, so we need higher opacity values
+        const opacity = 0.10 + 0.60 * grainS; // 10% -> 70% (boosted to match Canvas)
+        
+        // Resize grain texture
+        const resizedTexture = await sharp(buf)
+          .resize(width, height, { fit: "cover" })
+          .ensureAlpha()
+          .toBuffer();
+        
+        // Apply grain with soft-light - composite directly with opacity
+        // We'll apply it multiple times at lower opacity to build up the effect
+        const iterations = grainS > 0.5 ? 2 : 1; // Double pass for stronger grain
+        let grainBuffer = currentBuffer;
+        
+        for (let iter = 0; iter < iterations; iter++) {
+          const { data, info } = await sharp(resizedTexture)
+            .ensureAlpha()
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+          
+          // Scale alpha channel to desired opacity
+          const iterOpacity = opacity / iterations;
+          for (let p = 3; p < data.length; p += 4) {
+            data[p] = Math.round(data[p] * iterOpacity);
+          }
+          
+          const textureWithAlpha = await sharp(data, {
+            raw: { width: info.width, height: info.height, channels: 4 },
+          }).png().toBuffer();
+          
+          grainBuffer = await sharp(grainBuffer)
+            .composite([{
+              input: textureWithAlpha,
+              blend: 'soft-light',
+              top: 0,
+              left: 0
+            }])
+            .toBuffer();
+        }
+        
+        currentBuffer = grainBuffer;
+      } else {
+        // Flares: Use screen blend (this works well)
+        const opacity = 0.15 + 0.75 * flareS; // 15% -> 90%
+        
+        const { data, info } = await sharp(buf)
+          .resize(width, height, { fit: "cover" })
+          .ensureAlpha()
+          .raw()
+          .toBuffer({ resolveWithObject: true });
 
-      for (let p = 3; p < data.length; p += 4) {
-        data[p] = Math.round(data[p] * opacity);
+        for (let p = 3; p < data.length; p += 4) {
+          data[p] = Math.round(data[p] * opacity);
+        }
+
+        const textureWithOpacity = await sharp(data, {
+          raw: { width: info.width, height: info.height, channels: 4 },
+        }).png().toBuffer();
+        
+        currentBuffer = await sharp(currentBuffer)
+          .composite([{
+            input: textureWithOpacity,
+            blend: 'screen',
+            top: 0,
+            left: 0
+          }])
+          .toBuffer();
       }
-
-      const textureWithOpacity = await sharp(data, {
-        raw: { width: info.width, height: info.height, channels: 4 },
-      })
-        .png()
-        .toBuffer();
-      
-      currentBuffer = await sharp(currentBuffer)
-        .composite([{
-          input: textureWithOpacity,
-          blend,
-          top: 0,
-          left: 0
-        }])
-        .toBuffer();
     }
     
     return await sharp(currentBuffer)

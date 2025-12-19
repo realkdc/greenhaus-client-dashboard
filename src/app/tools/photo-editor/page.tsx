@@ -253,9 +253,9 @@ export default function PhotoEditorPage() {
                 const grainS = Math.max(0, Math.min(grainStrength / 100, 1));
                 // Match server-side: Light flares = screen, Grain = soft-light (doesn't darken)
                 ctx.globalCompositeOperation = isNoise ? "soft-light" : "screen";
-                // Match server-side opacity calculations exactly
+                // Match server-side opacity calculations - grain uses boosted range to match Sharp
                 ctx.globalAlpha = isNoise
-                  ? (0.05 + 0.45 * grainS)   // 5% -> 50% (matches server)
+                  ? (0.10 + 0.60 * grainS)   // 10% -> 70% (boosted to match Sharp's weaker soft-light)
                   : (0.15 + 0.75 * flareS);  // 15% -> 90% (matches server)
                 ctx.drawImage(texImg, 0, 0, canvas.width, canvas.height);
                 ctx.globalCompositeOperation = "source-over";
