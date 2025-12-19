@@ -266,6 +266,46 @@ export default function PhotoEditorPage() {
         
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         
+        // Helper function to draw text with double-layer effect (shadow + main)
+        const drawTextWithShadow = (
+          text: string,
+          x: number,
+          y: number,
+          mainColor: string,
+          fontSize: number,
+          font: string,
+          isBold: boolean = false
+        ) => {
+          ctx.font = (isBold ? 'bold ' : '') + fontSize + `px "${font}"`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          
+          // Check if text color is pink - if so, add shadow effect
+          const isPink = mainColor.toLowerCase().includes('ff69b4') || mainColor.toLowerCase().includes('ff1493') || 
+                         mainColor.toLowerCase().includes('ff') && (mainColor.toLowerCase().includes('b4') || mainColor.toLowerCase().includes('93'));
+          
+          if (isPink) {
+            // Darker pink shadow (offset slightly down and right)
+            const shadowColor = mainColor === '#FF69B4' || mainColor.toLowerCase() === '#ff69b4' ? '#D81B60' : '#C2185B';
+            ctx.fillStyle = shadowColor;
+            ctx.fillText(text, x + 2, y + 2); // Offset shadow
+            // Main brighter pink on top
+            ctx.fillStyle = mainColor;
+            ctx.fillText(text, x, y);
+          } else {
+            // For non-pink colors, add subtle shadow for readability
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+            ctx.shadowBlur = 4;
+            ctx.shadowOffsetX = 1;
+            ctx.shadowOffsetY = 1;
+            ctx.fillStyle = mainColor;
+            ctx.fillText(text, x, y);
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+          }
+        };
+        
         // Helper function to wrap text and handle line breaks, returns final Y position
         const drawMultilineText = (
           text: string,
@@ -277,7 +317,6 @@ export default function PhotoEditorPage() {
           isBold: boolean = false,
           lineHeight: number = 1.2
         ): number => {
-          ctx.font = (isBold ? 'bold ' : '') + fontSize + `px "${font}"`;
           ctx.textAlign = "center";
           ctx.textBaseline = "top";
           
@@ -292,11 +331,12 @@ export default function PhotoEditorPage() {
             
             words.forEach(word => {
               const testLine = currentLine + (currentLine ? ' ' : '') + word;
+              ctx.font = (isBold ? 'bold ' : '') + fontSize + `px "${font}"`;
               const metrics = ctx.measureText(testLine);
               
               if (metrics.width > maxWidth && currentLine) {
-                // Draw current line and start new one
-                ctx.fillText(currentLine, x, currentY);
+                // Draw current line with shadow effect and start new one
+                drawTextWithShadow(currentLine, x, currentY, textColor, fontSize, font, isBold);
                 currentY += fontSize * lineHeight;
                 currentLine = word;
               } else {
@@ -304,9 +344,9 @@ export default function PhotoEditorPage() {
               }
             });
             
-            // Draw the last line
+            // Draw the last line with shadow effect
             if (currentLine) {
-              ctx.fillText(currentLine, x, currentY);
+              drawTextWithShadow(currentLine, x, currentY, textColor, fontSize, font, isBold);
               currentY += fontSize * lineHeight;
             }
             

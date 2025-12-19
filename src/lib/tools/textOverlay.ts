@@ -53,7 +53,75 @@ export async function addTextOverlay(
         const estimatedWidth = testLine.length * field.fontSize * 0.6;
         
         if (estimatedWidth > maxWidth && currentLine) {
-          // Draw current line and start new one
+          // Draw current line with shadow effect and start new one
+          const isPink = field.color.toLowerCase().includes('ff69b4') || field.color.toLowerCase().includes('ff1493') ||
+                         (field.color.toLowerCase().includes('ff') && (field.color.toLowerCase().includes('b4') || field.color.toLowerCase().includes('93')));
+          
+          if (isPink) {
+            // Darker pink shadow layer
+            const shadowColor = field.color === '#FF69B4' || field.color.toLowerCase() === '#ff69b4' ? '#D81B60' : '#C2185B';
+            svgContent += `
+              <text 
+                x="${field.x + 2}" 
+                y="${currentLineY + 2}" 
+                font-family="${fontFamily}" 
+                font-size="${field.fontSize}" 
+                fill="${shadowColor}"
+                text-anchor="middle"
+              >${currentLine.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>
+            `;
+            // Brighter pink top layer
+            svgContent += `
+              <text 
+                x="${field.x}" 
+                y="${currentLineY}" 
+                font-family="${fontFamily}" 
+                font-size="${field.fontSize}" 
+                fill="${field.color}"
+                text-anchor="middle"
+              >${currentLine.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>
+            `;
+          } else {
+            svgContent += `
+              <text 
+                x="${field.x}" 
+                y="${currentLineY}" 
+                font-family="${fontFamily}" 
+                font-size="${field.fontSize}" 
+                fill="${field.color}"
+                stroke="rgba(0,0,0,0.3)"
+                stroke-width="1"
+                text-anchor="middle"
+              >${currentLine.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>
+            `;
+          }
+          currentLineY += lineHeight;
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      });
+      
+      // Draw the last line of this paragraph
+      if (currentLine) {
+        // Check if color is pink - add double layer effect
+        const isPink = field.color.toLowerCase().includes('ff69b4') || field.color.toLowerCase().includes('ff1493') ||
+                       (field.color.toLowerCase().includes('ff') && (field.color.toLowerCase().includes('b4') || field.color.toLowerCase().includes('93')));
+        
+        if (isPink) {
+          // Darker pink shadow layer (offset slightly)
+          const shadowColor = field.color === '#FF69B4' || field.color.toLowerCase() === '#ff69b4' ? '#D81B60' : '#C2185B';
+          svgContent += `
+            <text 
+              x="${field.x + 2}" 
+              y="${currentLineY + 2}" 
+              font-family="${fontFamily}" 
+              font-size="${field.fontSize}" 
+              fill="${shadowColor}"
+              text-anchor="middle"
+            >${currentLine.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>
+          `;
+          // Brighter pink top layer
           svgContent += `
             <text 
               x="${field.x}" 
@@ -64,25 +132,21 @@ export async function addTextOverlay(
               text-anchor="middle"
             >${currentLine.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>
           `;
-          currentLineY += lineHeight;
-          currentLine = word;
         } else {
-          currentLine = testLine;
+          // Non-pink colors - add subtle shadow for readability
+          svgContent += `
+            <text 
+              x="${field.x}" 
+              y="${currentLineY}" 
+              font-family="${fontFamily}" 
+              font-size="${field.fontSize}" 
+              fill="${field.color}"
+              stroke="rgba(0,0,0,0.3)"
+              stroke-width="1"
+              text-anchor="middle"
+            >${currentLine.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>
+          `;
         }
-      });
-      
-      // Draw the last line of this paragraph
-      if (currentLine) {
-        svgContent += `
-          <text 
-            x="${field.x}" 
-            y="${currentLineY}" 
-            font-family="${fontFamily}" 
-            font-size="${field.fontSize}" 
-            fill="${field.color}"
-            text-anchor="middle"
-          >${currentLine.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>
-        `;
         currentLineY += lineHeight;
       }
       
