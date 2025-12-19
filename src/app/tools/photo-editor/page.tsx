@@ -257,9 +257,9 @@ export default function PhotoEditorPage() {
         body: JSON.stringify({
           imageUrl: editedUrl,
           textFields: [
-            { text: headline, font: selectedFont, fontSize: 80, color: textColor, x: 540, y: 400 },
-            { text: details, font: selectedFont, fontSize: 40, color: textColor, x: 540, y: 550 },
-            { text: cta, font: selectedFont, fontSize: 50, color: textColor, x: 540, y: 750 },
+            { text: headline, font: headlineFont, fontSize: 80, color: textColor, x: 540, y: 400 },
+            { text: details, font: detailsFont, fontSize: 40, color: textColor, x: 540, y: 550 },
+            { text: cta, font: ctaFont, fontSize: 50, color: textColor, x: 540, y: 750 },
           ],
         }),
       });
