@@ -575,7 +575,7 @@ export default function PhotoEditorPage() {
         );
       }
       
-      // Convert canvas to blob and download
+      // Convert canvas to blob and download at maximum quality
       exportCanvas.toBlob((blob) => {
         if (!blob) {
           toast.error("Failed to create image");
@@ -592,7 +592,7 @@ export default function PhotoEditorPage() {
         window.URL.revokeObjectURL(blobUrl);
         
         toast.success("Downloaded successfully!");
-      }, 'image/jpeg', 0.95);
+      }, 'image/jpeg', 1.0); // Maximum quality (1.0)
       
     } catch (err: any) {
       console.error('Export error:', err);

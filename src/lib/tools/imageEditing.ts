@@ -176,6 +176,7 @@ export async function applyTexturesWithSharp(
     });
   }
   
+  // Convert to high-quality buffer (keep original format, no compression yet)
   const baseBuffer = await image.toBuffer();
   const metadata = await sharp(baseBuffer).metadata();
   const width = metadata.width || 1080;
@@ -192,10 +193,10 @@ export async function applyTexturesWithSharp(
       const buf = textureBuffers[i];
       
       // Resize texture to match base image
-      // Then reduce its intensity so it's not overwhelming
+      // Use a gentler brightness reduction to avoid artifacts
       const resizedTexture = await sharp(buf)
         .resize(width, height, { fit: 'cover' })
-        .modulate({ brightness: 0.6 }) // Reduce intensity to 60%
+        .modulate({ brightness: 0.7 }) // Reduce to 70% (was 0.6, less aggressive)
         .toBuffer();
       
       // Composite with screen blend - makes light flares glow naturally
@@ -209,8 +210,14 @@ export async function applyTexturesWithSharp(
         .toBuffer();
     }
     
-    return currentBuffer;
+    // Ensure high-quality JPEG output
+    return await sharp(currentBuffer)
+      .jpeg({ quality: 95, mozjpeg: true })
+      .toBuffer();
   }
   
-  return baseBuffer;
+  // Ensure high-quality JPEG output even without textures
+  return await sharp(baseBuffer)
+    .jpeg({ quality: 95, mozjpeg: true })
+    .toBuffer();
 }
