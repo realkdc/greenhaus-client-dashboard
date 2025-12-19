@@ -8,16 +8,25 @@ export default function Home(): JSX.Element {
   const [showWelcome, setShowWelcome] = useState(true);
 
   useEffect(() => {
-    // Check if user has already entered in this browser session
-    // sessionStorage persists only for the current browser tab/window session
-    // When the browser is closed, it will show again on next visit
-    const entered = sessionStorage.getItem("greenhaus-entered");
-    if (entered === "true") {
-      setShowWelcome(false);
-      document.body.classList.remove("welcome-active");
-    } else {
-      document.body.classList.add("welcome-active");
+    // Check if user has entered in the last 24 hours
+    // Uses localStorage with timestamp to show welcome screen once per day
+    const lastEntered = localStorage.getItem("greenhaus-entered-timestamp");
+    
+    if (lastEntered) {
+      const lastEnteredTime = parseInt(lastEntered, 10);
+      const now = Date.now();
+      const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+      
+      // If less than 24 hours have passed, don't show welcome screen
+      if (now - lastEnteredTime < twentyFourHours) {
+        setShowWelcome(false);
+        document.body.classList.remove("welcome-active");
+        return;
+      }
     }
+    
+    // Show welcome screen if never entered or more than 24 hours have passed
+    document.body.classList.add("welcome-active");
   }, []);
 
   useEffect(() => {
@@ -29,7 +38,8 @@ export default function Home(): JSX.Element {
   }, [showWelcome]);
 
   const handleEnter = () => {
-    sessionStorage.setItem("greenhaus-entered", "true");
+    // Store timestamp in localStorage (persists across browser sessions)
+    localStorage.setItem("greenhaus-entered-timestamp", Date.now().toString());
     setShowWelcome(false);
   };
 
