@@ -692,8 +692,8 @@ export default function CaptionGeneratorPage(): JSX.Element {
                 </div>
               )}
 
-              {/* Image Analysis Output (Gemini) */}
-              {imageAnalysis && (
+              {/* Image Analysis Output (Gemini) - Hidden for client dashboard */}
+              {/* {imageAnalysis && (
                 <div className="rounded-xl border border-purple-200 bg-purple-50 p-6">
                   <div className="mb-4 flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-purple-900">
@@ -709,10 +709,10 @@ export default function CaptionGeneratorPage(): JSX.Element {
                     </p>
                   </div>
                 </div>
-              )}
+              )} */}
 
-              {/* Video Analysis Output (Gemini) */}
-              {videoAnalyses.length > 0 && (
+              {/* Video Analysis Output (Gemini) - Hidden for client dashboard */}
+              {/* {videoAnalyses.length > 0 && (
                 <div className="rounded-xl border border-blue-200 bg-blue-50 p-6">
                   <div className="mb-4 flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-blue-900">
@@ -740,7 +740,7 @@ export default function CaptionGeneratorPage(): JSX.Element {
                     ))}
                   </div>
                 </div>
-              )}
+              )} */}
 
               {/* Generated Caption Output */}
               {generatedCaption && (
@@ -829,11 +829,8 @@ export default function CaptionGeneratorPage(): JSX.Element {
                   <h3 className="text-sm font-semibold text-blue-900">
                     How it works
                   </h3>
-                  <p className="mt-1 text-sm text-blue-700">
-                    The AI analyzes your content and generates captions following GreenHaus
-                    brand guidelines: fun, playful tone with curated emojis, proper
-                    hashtags, and compelling CTAs. Videos are automatically processed with
-                    adaptive frame extraction (3-15 frames based on video length).
+                  <p className="mt-1 text-sm text-blue-700 leading-relaxed">
+                    Our AI analyzes your photos and videos to create perfectly tailored Instagram captions that match the GreenHaus brand voice. Simply upload your media, select your post type, and get instant, engaging captions with the right emojis and hashtags.
                   </p>
                 </div>
               </div>
@@ -858,10 +855,8 @@ export default function CaptionGeneratorPage(): JSX.Element {
                   <h3 className="text-sm font-semibold text-purple-900">
                     Google Drive Requirements
                   </h3>
-                  <p className="mt-1 text-sm text-purple-700">
-                    <strong>Important:</strong> Google Drive links must be set to "Anyone with
-                    the link can view." Right-click the file → Share → Change to "Anyone with
-                    the link" before pasting the link here.
+                  <p className="mt-1 text-sm text-purple-700 leading-relaxed">
+                    <strong>Note:</strong> For best results, please upload your files directly from your device. Google Drive support is currently in beta and may be unreliable for certain file types. If you need to use Google Drive, ensure files are set to "Anyone with the link can view."
                   </p>
                 </div>
               </div>
