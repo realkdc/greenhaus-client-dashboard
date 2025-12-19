@@ -21,6 +21,14 @@ const FONTS = [
   { id: "elaina", name: "Elaina Script", family: "Elaina Script" },
 ];
 
+const ASPECT_RATIOS = [
+  { id: "1:1", name: "Square (1:1)", width: 1080, height: 1080, description: "Instagram post" },
+  { id: "4:5", name: "Portrait (4:5)", width: 1080, height: 1350, description: "Instagram post" },
+  { id: "9:16", name: "Story (9:16)", width: 1080, height: 1920, description: "Instagram story" },
+  { id: "4:3", name: "Landscape (4:3)", width: 1080, height: 810, description: "Instagram post" },
+  { id: "original", name: "Keep Original", width: 0, height: 0, description: "Use photo's natural size" },
+];
+
 export default function PhotoEditorPage() {
   // Step State
   const [step, setStep] = useState(1); // 1: Edit, 2: Text
@@ -34,12 +42,18 @@ export default function PhotoEditorPage() {
   // Settings State
   const [selectedTextures, setSelectedTextures] = useState<string[]>([]);
   const [applyWarm, setApplyWarm] = useState(true);
+  const [aspectRatio, setAspectRatio] = useState("original");
+  
+  // Aspect Ratio State
+  const [aspectRatio, setAspectRatio] = useState("original");
   
   // Text State
   const [headline, setHeadline] = useState("Your Headline Here");
   const [details, setDetails] = useState("Enter your details");
   const [cta, setCta] = useState("Shop Now");
-  const [selectedFont, setSelectedFont] = useState(FONTS[0].family);
+  const [headlineFont, setHeadlineFont] = useState(FONTS[0].family);
+  const [detailsFont, setDetailsFont] = useState(FONTS[0].family);
+  const [ctaFont, setCtaFont] = useState(FONTS[0].family);
   const [textColor, setTextColor] = useState("#FFFFFF");
   
   // UI State
@@ -109,6 +123,7 @@ export default function PhotoEditorPage() {
           imageUrl: originalUrl,
           textureUrls: selectedTextures.map(id => TEXTURES.find(t => t.id === id)?.url),
           applyWarmFilter: applyWarm,
+          aspectRatio: aspectRatio === "original" ? undefined : aspectRatio,
         }),
       });
       
@@ -166,6 +181,7 @@ export default function PhotoEditorPage() {
           return new Promise<void>((resolve) => {
             const texImg = new Image();
             texImg.crossOrigin = "anonymous";
+            // Use the URL directly (it's already URL encoded)
             texImg.src = texture.url;
             
             texImg.onload = () => {
@@ -177,8 +193,8 @@ export default function PhotoEditorPage() {
               ctx.globalAlpha = 1.0;
               resolve();
             };
-            texImg.onerror = () => {
-              console.warn(`Failed to load texture: ${texture.url}`);
+            texImg.onerror = (err) => {
+              console.warn(`Failed to load texture: ${texture.url}`, err);
               resolve();
             };
           });
@@ -191,7 +207,7 @@ export default function PhotoEditorPage() {
         console.error("Failed to load image for preview");
       };
     }
-  }, [step, originalUrl, applyWarm, selectedTextures]);
+  }, [step, originalUrl, applyWarm, selectedTextures, aspectRatio]);
 
   // Step 2: Draw on Canvas for preview with text
   useEffect(() => {
@@ -217,19 +233,19 @@ export default function PhotoEditorPage() {
         ctx.textAlign = "center";
         
         // Headline
-        ctx.font = `bold ${Math.round(canvas.width * 0.08)}px "${selectedFont}"`;
+        ctx.font = `bold ${Math.round(canvas.width * 0.08)}px "${headlineFont}"`;
         ctx.fillText(headline, canvas.width / 2, canvas.height * 0.4);
         
         // Details
-        ctx.font = `${Math.round(canvas.width * 0.04)}px "${selectedFont}"`;
+        ctx.font = `${Math.round(canvas.width * 0.04)}px "${detailsFont}"`;
         ctx.fillText(details, canvas.width / 2, canvas.height * 0.5);
         
         // CTA
-        ctx.font = `bold ${Math.round(canvas.width * 0.05)}px "${selectedFont}"`;
+        ctx.font = `bold ${Math.round(canvas.width * 0.05)}px "${ctaFont}"`;
         ctx.fillText(cta, canvas.width / 2, canvas.height * 0.7);
       };
     }
-  }, [step, editedUrl, headline, details, cta, selectedFont, textColor]);
+  }, [step, editedUrl, headline, details, cta, headlineFont, detailsFont, ctaFont, textColor]);
 
   // Step 2: Export Final
   const handleExport = async () => {
@@ -366,6 +382,19 @@ export default function PhotoEditorPage() {
                   </div>
 
                   <div className="space-y-4">
+                    <div>
+                      <span className="mb-2 block text-sm font-bold text-slate-900">Post Size</span>
+                      <select 
+                        value={aspectRatio} 
+                        onChange={(e) => setAspectRatio(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-accent focus:ring-accent"
+                      >
+                        {ASPECT_RATIOS.map(ar => (
+                          <option key={ar.id} value={ar.id}>{ar.name} - {ar.description}</option>
+                        ))}
+                      </select>
+                    </div>
+
                     <label className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 transition hover:border-accent cursor-pointer">
                       <input 
                         type="checkbox" 
@@ -439,6 +468,15 @@ export default function PhotoEditorPage() {
                         onChange={(e) => setHeadline(e.target.value)}
                         className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 focus:border-accent focus:ring-accent"
                       />
+                      <select 
+                        value={headlineFont} 
+                        onChange={(e) => setHeadlineFont(e.target.value)}
+                        className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                      >
+                        {FONTS.map(f => (
+                          <option key={f.id} value={f.family}>{f.name}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Details</label>
@@ -448,6 +486,15 @@ export default function PhotoEditorPage() {
                         onChange={(e) => setDetails(e.target.value)}
                         className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 focus:border-accent focus:ring-accent"
                       />
+                      <select 
+                        value={detailsFont} 
+                        onChange={(e) => setDetailsFont(e.target.value)}
+                        className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                      >
+                        {FONTS.map(f => (
+                          <option key={f.id} value={f.family}>{f.name}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Call to Action</label>
@@ -457,33 +504,29 @@ export default function PhotoEditorPage() {
                         onChange={(e) => setCta(e.target.value)}
                         className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 focus:border-accent focus:ring-accent"
                       />
+                      <select 
+                        value={ctaFont} 
+                        onChange={(e) => setCtaFont(e.target.value)}
+                        className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                      >
+                        {FONTS.map(f => (
+                          <option key={f.id} value={f.family}>{f.name}</option>
+                        ))}
+                      </select>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Font Style</label>
-                        <select 
-                          value={selectedFont} 
-                          onChange={(e) => setSelectedFont(e.target.value)}
-                          className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm"
-                        >
-                          {FONTS.map(f => (
-                            <option key={f.id} value={f.family}>{f.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Text Color</label>
-                        <div className="mt-1 flex gap-2">
-                          {['#FFFFFF', '#000000', '#73A633', '#FFD700'].map(c => (
-                            <button 
-                              key={c}
-                              onClick={() => setTextColor(c)}
-                              className={`h-8 w-8 rounded-full border-2 ${textColor === c ? 'border-accent ring-2 ring-accent/20' : 'border-white shadow-sm'}`}
-                              style={{ backgroundColor: c }}
-                            />
-                          ))}
-                        </div>
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 block">Text Color</label>
+                      <div className="flex flex-wrap gap-2">
+                        {['#FFFFFF', '#000000', '#73A633', '#FFD700', '#FF69B4', '#FF1493'].map(c => (
+                          <button 
+                            key={c}
+                            onClick={() => setTextColor(c)}
+                            className={`h-10 w-10 rounded-full border-2 transition ${textColor === c ? 'border-accent ring-2 ring-accent/20 scale-110' : 'border-white shadow-sm hover:scale-105'}`}
+                            style={{ backgroundColor: c }}
+                            title={c === '#FF69B4' || c === '#FF1493' ? 'Pink' : c === '#FFFFFF' ? 'White' : c === '#000000' ? 'Black' : c === '#73A633' ? 'Green' : c === '#FFD700' ? 'Yellow' : c}
+                          />
+                        ))}
                       </div>
                     </div>
                   </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
+import sharp from "sharp";
 import { applyTexturesWithSharp } from "@/lib/tools/imageEditing";
 import { checkUsageLimit, recordUsage } from "@/lib/usage/tracker";
 
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { imageUrl, textureUrls, applyWarmFilter, effectStrength } = body;
+    const { imageUrl, textureUrls, applyWarmFilter, effectStrength, aspectRatio } = body;
 
     if (!imageUrl) {
       return NextResponse.json({ error: "No image URL provided" }, { status: 400 });
@@ -21,6 +22,9 @@ export async function POST(request: NextRequest) {
     // 2. Fetch images
     const imageRes = await fetch(imageUrl);
     const imageBuffer = Buffer.from(await imageRes.arrayBuffer());
+    
+    // Get image metadata for aspect ratio calculations
+    const imageMetadata = await sharp(imageBuffer).metadata();
 
     const textureBuffers: Buffer[] = [];
     if (textureUrls && Array.isArray(textureUrls)) {
@@ -42,12 +46,45 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. Process image (Using Sharp fallback for now as primary, as current Gemini SDK is text-focused)
+    // 3. Calculate target dimensions based on aspect ratio
+    const originalWidth = imageMetadata.width || 1080;
+    const originalHeight = imageMetadata.height || 1080;
+    
+    let targetWidth: number | undefined;
+    let targetHeight: number | undefined;
+    
+    if (aspectRatio) {
+      switch (aspectRatio) {
+        case '1:1': // Square (Instagram post)
+          targetWidth = 1080;
+          targetHeight = 1080;
+          break;
+        case '4:5': // Portrait (Instagram post)
+          targetWidth = 1080;
+          targetHeight = 1350;
+          break;
+        case '9:16': // Story
+          targetWidth = 1080;
+          targetHeight = 1920;
+          break;
+        case '4:3': // Landscape
+          targetWidth = 1080;
+          targetHeight = 810;
+          break;
+        default:
+          // Keep original dimensions
+          break;
+      }
+    }
+    
+    // 4. Process image (Using Sharp fallback for now as primary, as current Gemini SDK is text-focused)
     // We can still use Gemini to "decide" parameters if we wanted to be fancy
     const processedBuffer = await applyTexturesWithSharp(
       imageBuffer,
       textureBuffers,
-      applyWarmFilter
+      applyWarmFilter,
+      targetWidth,
+      targetHeight
     );
 
     // 4. Upload result to Vercel Blob
@@ -57,7 +94,7 @@ export async function POST(request: NextRequest) {
       contentType: "image/jpeg",
     });
 
-    // 5. Record usage
+    // 6. Record usage
     await recordUsage(0.01); // Arbitrary cost for image editing
 
     return NextResponse.json({ editedImageUrl: blob.url });

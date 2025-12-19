@@ -69,23 +69,41 @@ export async function editImageWithGemini(
 export async function applyTexturesWithSharp(
   imageBuffer: Buffer,
   textureBuffers: Buffer[],
-  applyWarm: boolean = true
+  applyWarm: boolean = true,
+  targetWidth?: number,
+  targetHeight?: number
 ): Promise<Buffer> {
-  let result = imageBuffer;
+  // Auto-orient based on EXIF to fix rotation issues
+  let image = sharp(imageBuffer).rotate(); // .rotate() without args auto-rotates based on EXIF
   
   if (applyWarm) {
-    result = await applyWarmFilter(result);
+    const warmBuffer = await applyWarmFilter(imageBuffer);
+    image = sharp(warmBuffer).rotate();
   }
   
-  const overlays = textureBuffers.map(buf => ({
-    input: buf,
-    blend: 'screen' as const, // Textures like light flares usually work best with screen/overlay
-    opacity: 0.6
-  }));
+  // Resize to target dimensions if provided (for aspect ratio)
+  if (targetWidth && targetHeight) {
+    image = image.resize(targetWidth, targetHeight, {
+      fit: 'cover', // Crop to fit if needed
+      position: 'center'
+    });
+  }
   
-  return await sharp(result)
-    .composite(overlays)
-    .toBuffer();
+  // Apply textures
+  if (textureBuffers.length > 0) {
+    const baseBuffer = await image.toBuffer();
+    const overlays = textureBuffers.map(buf => ({
+      input: buf,
+      blend: 'screen' as const, // Textures like light flares usually work best with screen/overlay
+      opacity: 0.6
+    }));
+    
+    return await sharp(baseBuffer)
+      .composite(overlays)
+      .toBuffer();
+  }
+  
+  return await image.toBuffer();
 }
 
 import sharp from "sharp";

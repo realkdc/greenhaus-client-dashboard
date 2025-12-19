@@ -14,7 +14,8 @@ import sharp from 'sharp';
  * - Texture/Clarity: +5/+10
  */
 export async function applyWarmFilter(input: Buffer | string): Promise<Buffer> {
-  let image = sharp(input);
+  // Auto-orient based on EXIF to fix rotation
+  let image = sharp(input).rotate(); // .rotate() without args auto-rotates based on EXIF
   
   // 1. Basic adjustments (Approximated with modulations)
   // Temperature +15 and Tint +12: shift towards yellow and magenta
