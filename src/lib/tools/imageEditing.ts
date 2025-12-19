@@ -238,9 +238,17 @@ export async function applyTexturesWithSharp(
         left = guide.position.x || 0;
       }
       
+      // Map blend modes - Sharp doesn't support 'normal', use 'over' instead
+      let blendMode: 'over' | 'in' | 'out' | 'atop' | 'xor' | 'add' | 'saturate' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'colour-dodge' | 'colour-burn' | 'hard-light' | 'soft-light' | 'difference' | 'exclusion' = 'screen';
+      
+      if (guide.blend === 'overlay') blendMode = 'overlay';
+      else if (guide.blend === 'multiply') blendMode = 'multiply';
+      else if (guide.blend === 'screen') blendMode = 'screen';
+      else if (guide.blend === 'normal') blendMode = 'over'; // 'normal' maps to 'over' in Sharp
+      
       return {
         input: textureBuffer,
-        blend: (guide.blend || 'screen') as 'screen' | 'overlay' | 'multiply' | 'normal',
+        blend: blendMode,
         top: Math.max(0, Math.min(top, height)),
         left: Math.max(0, Math.min(left, width)),
         opacity: Math.max(0, Math.min(guide.opacity || 0.6, 1.0))
