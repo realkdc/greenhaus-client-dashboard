@@ -44,9 +44,6 @@ export default function PhotoEditorPage() {
   const [applyWarm, setApplyWarm] = useState(true);
   const [aspectRatio, setAspectRatio] = useState("original");
   
-  // Aspect Ratio State
-  const [aspectRatio, setAspectRatio] = useState("original");
-  
   // Text State
   const [headline, setHeadline] = useState("Your Headline Here");
   const [details, setDetails] = useState("Enter your details");
