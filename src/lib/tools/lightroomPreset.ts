@@ -4,15 +4,19 @@ import sharp from 'sharp';
  * Applies the GreenHaus "Warm" brand aesthetic.
  * Creates a golden, warm tone similar to the designer's style.
  */
-export async function applyWarmFilter(input: Buffer | string): Promise<Buffer> {
+export async function applyWarmFilter(
+  input: Buffer | string,
+  strength: number = 0.6
+): Promise<Buffer> {
   // Auto-orient based on EXIF to fix rotation
   let image = sharp(input).rotate();
   
-  // Apply the warm brand look with high quality processing
-  image = image.modulate({
-    brightness: 1.05,    // 5% brighter
-    saturation: 1.15,    // 15% more saturated for rich colors
-  });
+  const s = Math.max(0, Math.min(strength, 1));
+  // Warmth should be noticeable but safe (no "deep fried")
+  const brightness = 1 + 0.08 * s; // 1.00 -> 1.08
+  const saturation = 1 + 0.25 * s; // 1.00 -> 1.25
+
+  image = image.modulate({ brightness, saturation });
   
   return await image.toBuffer();
 }

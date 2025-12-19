@@ -94,7 +94,8 @@ export async function POST(request: NextRequest) {
       applyWarmFilter,
       targetWidth,
       targetHeight,
-      textureNames
+      textureNames,
+      typeof effectStrength === "number" ? effectStrength : 0.6
     );
 
     // 4. Upload result to Vercel Blob (PNG = lossless, avoids "grainy" JPEG artifacts)

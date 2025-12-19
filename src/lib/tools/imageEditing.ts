@@ -157,13 +157,14 @@ export async function applyTexturesWithSharp(
   applyWarm: boolean = true,
   targetWidth?: number,
   targetHeight?: number,
-  textureNames: string[] = []
+  textureNames: string[] = [],
+  effectStrength: number = 0.6
 ): Promise<Buffer> {
   // Auto-orient based on EXIF to fix rotation issues
   let image = sharp(imageBuffer).rotate();
   
   if (applyWarm) {
-    const warmBuffer = await applyWarmFilter(imageBuffer);
+    const warmBuffer = await applyWarmFilter(imageBuffer, effectStrength);
     image = sharp(warmBuffer).rotate();
   }
   
@@ -190,6 +191,7 @@ export async function applyTexturesWithSharp(
   // - Grain/noise: overlay @ ~8%
   if (textureBuffers.length > 0) {
     let currentBuffer = baseBuffer;
+    const s = Math.max(0, Math.min(effectStrength, 1));
     
     for (let i = 0; i < textureBuffers.length; i++) {
       const buf = textureBuffers[i];
@@ -197,7 +199,10 @@ export async function applyTexturesWithSharp(
 
       const isNoise = textureName.includes("noise") || textureName.includes("grain");
       const blend: "screen" | "overlay" = isNoise ? "overlay" : "screen";
-      const opacity = isNoise ? 0.08 : 0.35;
+      // Heavier effects when desired, but with safe caps.
+      // - Flares can be stronger (localized)
+      // - Grain must stay subtle
+      const opacity = isNoise ? (0.03 + 0.12 * s) : (0.20 + 0.50 * s);
       
       // Resize texture to match base image, then apply global opacity by scaling alpha.
       // This avoids the previous mask/composite issues and keeps the output clean.
