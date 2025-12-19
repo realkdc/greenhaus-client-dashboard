@@ -25,9 +25,20 @@ export async function POST(request: NextRequest) {
     const textureBuffers: Buffer[] = [];
     if (textureUrls && Array.isArray(textureUrls)) {
       for (const url of textureUrls) {
-        const fullUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_APP_URL || ''}${url}`;
-        const texRes = await fetch(fullUrl);
-        textureBuffers.push(Buffer.from(await texRes.arrayBuffer()));
+        try {
+          // Handle relative URLs - decode them properly
+          const decodedUrl = decodeURIComponent(url);
+          const fullUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}${decodedUrl}`;
+          const texRes = await fetch(fullUrl);
+          if (!texRes.ok) {
+            console.error(`Failed to fetch texture: ${fullUrl} - ${texRes.statusText}`);
+            continue;
+          }
+          textureBuffers.push(Buffer.from(await texRes.arrayBuffer()));
+        } catch (err) {
+          console.error(`Error loading texture ${url}:`, err);
+          // Continue with other textures even if one fails
+        }
       }
     }
 

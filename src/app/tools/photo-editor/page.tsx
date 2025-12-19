@@ -6,12 +6,12 @@ import { upload } from "@vercel/blob/client";
 import toast from "react-hot-toast";
 
 const TEXTURES = [
-  { id: "light-flare-1", name: "Light Flare 1", url: "/brand-assets/textures/Light Flare_1.png" },
-  { id: "light-flare-2", name: "Light Flare 2", url: "/brand-assets/textures/Light Flare_2.png" },
-  { id: "light-flare-3", name: "Light Flare 3", url: "/brand-assets/textures/Light Flare_3.png" },
-  { id: "light-flare-4", name: "Light Flare 4", url: "/brand-assets/textures/Light Flare_4.png" },
-  { id: "light-flare-5", name: "Light Flare 5", url: "/brand-assets/textures/Light Flare_5.png" },
-  { id: "light-flare-6", name: "Light Flare 6", url: "/brand-assets/textures/Light Flare_6.png" },
+  { id: "light-flare-1", name: "Light Flare 1", url: "/brand-assets/textures/Light%20Flare_1.png" },
+  { id: "light-flare-2", name: "Light Flare 2", url: "/brand-assets/textures/Light%20Flare_2.png" },
+  { id: "light-flare-3", name: "Light Flare 3", url: "/brand-assets/textures/Light%20Flare_3.png" },
+  { id: "light-flare-4", name: "Light Flare 4", url: "/brand-assets/textures/Light%20Flare_4.png" },
+  { id: "light-flare-5", name: "Light Flare 5", url: "/brand-assets/textures/Light%20Flare_5.png" },
+  { id: "light-flare-6", name: "Light Flare 6", url: "/brand-assets/textures/Light%20Flare_6.png" },
   { id: "noise-1", name: "Grain 1", url: "/brand-assets/textures/Noise_1.png" },
   { id: "noise-2", name: "Grain 2", url: "/brand-assets/textures/Noise_2.png" },
 ];
@@ -48,25 +48,51 @@ export default function PhotoEditorPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Handle file upload
+  const handleFileUpload = async (file: File) => {
+    setOriginalFile(file);
+    setIsLoading(true);
+    
+    try {
+      const newBlob = await upload(`photo-editor/${file.name}`, file, {
+        access: "public",
+        handleUploadUrl: "/api/tools/upload-token",
+      });
+      setOriginalUrl(newBlob.url);
+      toast.success("Photo uploaded!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to upload photo");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setOriginalFile(file);
-      setIsLoading(true);
-      
-      try {
-        const newBlob = await upload(`photo-editor/${file.name}`, file, {
-          access: "public",
-          handleUploadUrl: "/api/tools/upload-token",
-        });
-        setOriginalUrl(newBlob.url);
-        toast.success("Photo uploaded!");
-      } catch (err) {
-        console.error(err);
-        toast.error("Failed to upload photo");
-      } finally {
-        setIsLoading(false);
-      }
+      await handleFileUpload(e.target.files[0]);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles && droppedFiles.length > 0 && droppedFiles[0].type.startsWith("image/")) {
+      await handleFileUpload(droppedFiles[0]);
     }
   };
 
@@ -99,7 +125,75 @@ export default function PhotoEditorPage() {
     }
   };
 
-  // Step 2: Draw on Canvas for preview
+  // Real-time preview for Step 1 (effects preview)
+  useEffect(() => {
+    if (step === 1 && originalUrl && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = originalUrl;
+      
+      img.onload = async () => {
+        const maxWidth = 800;
+        const scale = Math.min(1, maxWidth / img.width);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        
+        // Draw base image
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        // Apply warm filter effect (simplified client-side version)
+        if (applyWarm) {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imageData.data;
+          for (let i = 0; i < data.length; i += 4) {
+            // Increase red/orange tones (warm effect)
+            data[i] = Math.min(255, data[i] * 1.05);     // R
+            data[i + 1] = Math.min(255, data[i + 1] * 1.02); // G
+            data[i + 2] = Math.min(255, data[i + 2] * 0.95); // B
+          }
+          ctx.putImageData(imageData, 0, 0);
+        }
+        
+        // Apply texture overlays
+        const texturePromises = selectedTextures.map(textureId => {
+          const texture = TEXTURES.find(t => t.id === textureId);
+          if (!texture) return Promise.resolve();
+          
+          return new Promise<void>((resolve) => {
+            const texImg = new Image();
+            texImg.crossOrigin = "anonymous";
+            texImg.src = texture.url;
+            
+            texImg.onload = () => {
+              // Blend texture with screen mode
+              ctx.globalCompositeOperation = "screen";
+              ctx.globalAlpha = 0.6;
+              ctx.drawImage(texImg, 0, 0, canvas.width, canvas.height);
+              ctx.globalCompositeOperation = "source-over";
+              ctx.globalAlpha = 1.0;
+              resolve();
+            };
+            texImg.onerror = () => {
+              console.warn(`Failed to load texture: ${texture.url}`);
+              resolve();
+            };
+          });
+        });
+        
+        await Promise.all(texturePromises);
+      };
+      
+      img.onerror = () => {
+        console.error("Failed to load image for preview");
+      };
+    }
+  }, [step, originalUrl, applyWarm, selectedTextures]);
+
+  // Step 2: Draw on Canvas for preview with text
   useEffect(() => {
     if (step === 2 && editedUrl && canvasRef.current) {
       const canvas = canvasRef.current;
@@ -217,27 +311,38 @@ export default function PhotoEditorPage() {
               {step === 1 ? (
                 originalUrl ? (
                   <div className="p-4 w-full">
-                    <img 
-                      src={originalUrl} 
-                      alt="Original" 
-                      className="mx-auto max-h-[500px] rounded-lg shadow-md"
-                    />
+                    <canvas ref={canvasRef} className="mx-auto max-w-full max-h-[500px] rounded-lg shadow-md bg-white" />
                     <button 
-                      onClick={() => setOriginalUrl("")}
+                      onClick={() => {
+                        setOriginalUrl("");
+                        setSelectedTextures([]);
+                        setApplyWarm(true);
+                      }}
                       className="mt-4 mx-auto block text-sm text-red-600 font-medium"
                     >
                       Remove and try another
                     </button>
                   </div>
                 ) : (
-                  <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center p-12 text-center transition hover:bg-slate-100">
+                  <label 
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`flex h-full w-full cursor-pointer flex-col items-center justify-center p-12 text-center transition ${
+                      isDragging ? "bg-accent/10 border-2 border-accent border-dashed" : "hover:bg-slate-100"
+                    }`}
+                  >
                     <div className="rounded-full bg-accent/10 p-4 text-accent">
                       <svg className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
                     </div>
-                    <h3 className="mt-4 text-xl font-bold text-slate-900">Click to add your photo</h3>
-                    <p className="mt-1 text-slate-600">Any photo works! We'll make it look professional.</p>
+                    <h3 className="mt-4 text-xl font-bold text-slate-900">
+                      {isDragging ? "Drop your photo here" : "Click to add your photo"}
+                    </h3>
+                    <p className="mt-1 text-slate-600">
+                      {isDragging ? "Release to upload" : "Or drag and drop any photo here"}
+                    </p>
                     <input type="file" className="sr-only" onChange={handleFileChange} accept="image/*" />
                   </label>
                 )
