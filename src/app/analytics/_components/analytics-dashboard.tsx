@@ -73,6 +73,13 @@ export default function AnalyticsDashboard() {
 
   useEffect(() => {
     fetchAnalytics();
+    
+    // Auto-refresh every 30 seconds to keep data up-to-date
+    const interval = setInterval(() => {
+      fetchAnalytics();
+    }, 30000); // 30 seconds
+    
+    return () => clearInterval(interval);
   }, [fetchAnalytics]);
 
   const handleFilterChange = useCallback(
@@ -108,11 +115,17 @@ export default function AnalyticsDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold text-slate-900">Analytics Dashboard</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Monitor app usage, engagement, and key user actions
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold text-slate-900">Analytics Dashboard</h1>
+          <p className="mt-2 text-sm text-slate-600">
+            Monitor app usage, engagement, and key user actions
+          </p>
+        </div>
+        <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
+          <span>Auto-refreshing every 30s</span>
+        </div>
       </div>
 
       <AnalyticsFilters onFilterChange={handleFilterChange} />
