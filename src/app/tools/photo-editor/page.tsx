@@ -190,50 +190,65 @@ export default function PhotoEditorPage() {
       img.src = originalUrl;
       
       img.onload = async () => {
-        const maxWidth = 800;
-        const scale = Math.min(1, maxWidth / img.width);
+        // Keep canvas at a reasonable preview size (500px max)
+        const maxDimension = 500;
+        const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
         canvas.width = img.width * scale;
         canvas.height = img.height * scale;
         
         // Draw base image
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         
-        // Apply warm filter - very subtle brightness/saturation boost
+        // Apply warm filter - golden glow effect
         if (applyWarm) {
-          // Simple brightness boost only - no color manipulation
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const data = imageData.data;
           for (let i = 0; i < data.length; i += 4) {
-            // Just a tiny brightness lift
-            data[i] = Math.min(255, data[i] + 5);     // R
-            data[i + 1] = Math.min(255, data[i + 1] + 3); // G
-            data[i + 2] = data[i + 2];                // B unchanged
+            // Golden warm shift - boost reds/yellows, reduce blues slightly
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            
+            // Increase brightness and warmth
+            data[i] = Math.min(255, r * 1.08);     // R boost
+            data[i + 1] = Math.min(255, g * 1.03); // G slight boost
+            data[i + 2] = Math.min(255, b * 0.95); // B reduce for warmth
+            
+            // Increase saturation slightly
+            const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            data[i] = Math.min(255, avg + (data[i] - avg) * 1.15);
+            data[i + 1] = Math.min(255, avg + (data[i + 1] - avg) * 1.15);
+            data[i + 2] = Math.min(255, avg + (data[i + 2] - avg) * 1.15);
           }
           ctx.putImageData(imageData, 0, 0);
         }
         
-        // Apply texture overlays with screen blend
-        const texturePromises = selectedTextures.map(textureId => {
-          const texture = TEXTURES.find(t => t.id === textureId);
-          if (!texture) return Promise.resolve();
-          
-          return new Promise<void>((resolve) => {
-            const texImg = new Image();
-            texImg.crossOrigin = "anonymous";
-            texImg.src = texture.url;
+        // Apply texture overlays if selected
+        if (selectedTextures.length > 0) {
+          const texturePromises = selectedTextures.map(textureId => {
+            const texture = TEXTURES.find(t => t.id === textureId);
+            if (!texture) return Promise.resolve();
             
-            texImg.onload = () => {
-              // Screen blend - makes light flares look natural
-              ctx.globalCompositeOperation = "screen";
-              ctx.drawImage(texImg, 0, 0, canvas.width, canvas.height);
-              ctx.globalCompositeOperation = "source-over";
-              resolve();
-            };
-            texImg.onerror = () => resolve();
+            return new Promise<void>((resolve) => {
+              const texImg = new Image();
+              texImg.crossOrigin = "anonymous";
+              texImg.src = texture.url;
+              
+              texImg.onload = () => {
+                // Screen blend - makes light flares glow naturally
+                ctx.globalCompositeOperation = "screen";
+                ctx.globalAlpha = 0.5; // Visible but not overwhelming
+                ctx.drawImage(texImg, 0, 0, canvas.width, canvas.height);
+                ctx.globalCompositeOperation = "source-over";
+                ctx.globalAlpha = 1.0;
+                resolve();
+              };
+              texImg.onerror = () => resolve();
+            });
           });
-        });
-        
-        await Promise.all(texturePromises);
+          
+          await Promise.all(texturePromises);
+        }
       };
       
       img.onerror = () => {
@@ -253,9 +268,9 @@ export default function PhotoEditorPage() {
       img.crossOrigin = "anonymous";
       img.src = editedUrl;
       img.onload = () => {
-        // Match canvas size to image aspect ratio (max 800px)
-        const maxWidth = 800;
-        const scale = Math.min(1, maxWidth / img.width);
+        // Match canvas size to image aspect ratio (max 500px for clean preview)
+        const maxDimension = 500;
+        const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
         canvas.width = img.width * scale;
         canvas.height = img.height * scale;
         

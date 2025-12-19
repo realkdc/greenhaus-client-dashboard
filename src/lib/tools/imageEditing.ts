@@ -183,20 +183,21 @@ export async function applyTexturesWithSharp(
   // Get intelligent guidance from Gemini
   const guidance = await getGeminiTextureGuidance(imageBuffer, textureBuffers, textureNames);
   
-  // Apply textures - SIMPLIFIED approach (no complex opacity manipulation)
+  // Apply textures with controlled intensity
   if (textureBuffers.length > 0) {
     let currentBuffer = baseBuffer;
     
     for (let i = 0; i < textureBuffers.length; i++) {
       const buf = textureBuffers[i];
       
-      // Simply resize texture to match base image
+      // Resize texture to match base image
+      // Then reduce its intensity so it's not overwhelming
       const resizedTexture = await sharp(buf)
         .resize(width, height, { fit: 'cover' })
+        .modulate({ brightness: 0.6 }) // Reduce intensity to 60%
         .toBuffer();
       
-      // Composite with screen blend - this is what makes light flares work
-      // Screen blend naturally makes dark areas transparent
+      // Composite with screen blend - makes light flares glow naturally
       currentBuffer = await sharp(currentBuffer)
         .composite([{
           input: resizedTexture,
