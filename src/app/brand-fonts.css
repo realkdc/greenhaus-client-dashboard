@@ -1,0 +1,16 @@
+@font-face {
+  font-family: 'Civane Cond Demi';
+  src: url('/brand-assets/fonts/civane-cond-demi.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Elaina Script';
+  src: url('/brand-assets/fonts/elaina-script.otf') format('opentype'),
+       url('/brand-assets/fonts/elaina-script.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}

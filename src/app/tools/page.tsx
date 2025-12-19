@@ -73,6 +73,56 @@ export default function ToolsPage(): JSX.Element {
               </div>
             </Link>
 
+            {/* Photo Editor Tool Card */}
+            <Link
+              href="/tools/photo-editor"
+              className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-accent hover:shadow-lg"
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <div className="rounded-xl bg-purple-100 p-3">
+                  <svg
+                    className="h-6 w-6 text-purple-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                </div>
+                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                  NEW
+                </span>
+              </div>
+              <h3 className="text-xl font-semibold text-slate-900">
+                Brand Photo Editor
+              </h3>
+              <p className="mt-2 text-sm text-slate-600">
+                Turn raw photos into professional GreenHaus posts. Apply textures,
+                filters, and add brand fonts instantly.
+              </p>
+              <div className="mt-4 flex items-center text-sm font-medium text-purple-600">
+                <span>Open Tool</span>
+                <svg
+                  className="ml-1 h-4 w-4 transition group-hover:translate-x-1"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </div>
+            </Link>
+
             {/* Placeholder for future tools */}
             <div className="relative overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6">
               <div className="flex h-full flex-col items-center justify-center text-center">
