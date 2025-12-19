@@ -64,92 +64,9 @@ export async function editImageWithGemini(
   throw new Error("Gemini image-to-image output not yet implemented in this SDK version. Falling back to Sharp-based processing.");
 }
 
-/**
- * Uses Gemini to analyze image and textures, then returns intelligent placement instructions
- */
-interface TextureGuidance {
-  blend: string;
-  opacity: number;
-  position: { x?: number; y?: number; gravity?: string };
-}
-
-async function getGeminiTextureGuidance(
-  imageBuffer: Buffer,
-  textureBuffers: Buffer[],
-  textureNames: string[]
-): Promise<TextureGuidance[]> {
-  try {
-    const genAI = getGeminiClient();
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-    
-    // Build parts array - Gemini requires separate objects for images and text
-    const parts: any[] = [
-      {
-        inlineData: {
-          data: imageBuffer.toString("base64"),
-          mimeType: "image/jpeg",
-        },
-      },
-    ];
-    
-    // Add each texture as separate image part
-    textureBuffers.forEach((buf, i) => {
-      parts.push({
-        inlineData: {
-          data: buf.toString("base64"),
-          mimeType: "image/png",
-        },
-      });
-      parts.push({ text: `Texture ${i + 1}: ${textureNames[i] || 'overlay'}` });
-    });
-    
-    // Add the main prompt
-    parts.push({
-      text: `Analyze this photo and the ${textureBuffers.length} texture overlay(s). 
-
-Return ONLY a valid JSON array for the textures. 
-- ALWAYS use "screen" for light flares.
-- ALWAYS use "overlay" for noise/grain.
-- Keep opacity VERY LOW (between 0.1 and 0.25) to avoid a "deep-fried" or over-processed look.
-
-[
-  {
-    "blend": "screen",
-    "opacity": 0.15,
-    "position": { "gravity": "center" }
-  }
-]`,
-    });
-
-    const result = await model.generateContent(parts);
-    const response = await result.response;
-    const text = response.text();
-    
-    // Extract JSON from response (handle markdown code blocks if present)
-    let jsonText = text.trim();
-    jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    
-    // Try to find JSON array in the response
-    const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      jsonText = jsonMatch[0];
-    }
-    
-    const guidance = JSON.parse(jsonText);
-    return guidance;
-  } catch (error) {
-    console.error("Error getting Gemini guidance, using defaults:", error);
-    // Return sensible defaults
-    return textureBuffers.map(() => ({
-      blend: 'screen',
-      opacity: 0.15,
-      position: { gravity: 'center' }
-    }));
-  }
-}
 
 /**
- * Applies textures intelligently using Gemini guidance
+ * Applies textures with user-controlled strength (no Gemini needed - simple rules work better)
  */
 export async function applyTexturesWithSharp(
   imageBuffer: Buffer,
@@ -184,7 +101,7 @@ export async function applyTexturesWithSharp(
   const width = metadata.width || 1080;
   const height = metadata.height || 1080;
   
-  // Apply textures with controlled intensity
+  // Apply textures with controlled intensity (no Gemini - simple rules work better)
   // IMPORTANT: Grain/Noise textures MUST NOT be applied with 'screen' at high strength,
   // otherwise they look like heavy speckled "grain" across the whole photo.
   // We treat textures differently based on name:
