@@ -202,7 +202,30 @@ export default function CaptionGeneratorPage(): JSX.Element {
       }
 
       addProgressLog("✓ Caption generated successfully!", "success");
-      setGeneratedCaption(data.caption);
+      // Handle 21+ placement: Ensure it's after caption text and before hashtags
+      let finalCaption = (data.caption || "").trim();
+      
+      // Look for hashtags at the end
+      const hashtagRegex = /(#\w+\s*)+$/;
+      const hashtagsMatch = finalCaption.match(hashtagRegex);
+      
+      if (hashtagsMatch) {
+        const hashtags = hashtagsMatch[0].trim();
+        let captionBody = finalCaption.replace(hashtagRegex, "").trim();
+        
+        // Remove 21+ if it exists anywhere to reposition it
+        captionBody = captionBody.replace(/21\+/g, "").trim();
+        const cleanedHashtags = hashtags.replace(/21\+/g, "").trim();
+        
+        // Final structure: [Body] 21+\n\n[Hashtags]
+        finalCaption = `${captionBody} 21+\n\n${cleanedHashtags}`;
+      } else {
+        // No hashtags, just ensure 21+ is at the end of the body
+        const captionBody = finalCaption.replace(/21\+/g, "").trim();
+        finalCaption = `${captionBody} 21+`;
+      }
+
+      setGeneratedCaption(finalCaption);
       setImageAnalysis(data.imageAnalysis);
       setVideoAnalyses(data.videoAnalyses || []);
 
