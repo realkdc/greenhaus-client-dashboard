@@ -30,9 +30,11 @@ export async function addTextOverlay(
   // or to do it all on the client.
   
   for (const field of textFields) {
+    if (!field.text || !field.text.trim()) continue; // Skip empty fields
+    
     const fontFamily = field.font === 'Civane Cond Demi' ? 'Civane Cond Demi' : 'Elaina Script';
     const text = field.text;
-    const maxWidth = width * 0.85; // Allow 85% of width for text
+    const maxWidth = field.maxWidth || width * 0.85; // Allow 85% of width for text
     const lineHeight = field.fontSize * 1.2;
     
     // Split by manual line breaks first
@@ -45,7 +47,7 @@ export async function addTextOverlay(
       let currentLine = '';
       let currentLineY = currentY;
       
-      words.forEach((word, wordIdx) => {
+      words.forEach((word) => {
         const testLine = currentLine + (currentLine ? ' ' : '') + word;
         // Estimate text width (rough approximation: 0.6 * fontSize * charCount)
         const estimatedWidth = testLine.length * field.fontSize * 0.6;

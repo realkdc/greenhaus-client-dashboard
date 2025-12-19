@@ -45,13 +45,54 @@ export default function PhotoEditorPage() {
   const [aspectRatio, setAspectRatio] = useState("original");
   
   // Text State
-  const [headline, setHeadline] = useState("Your Headline Here");
-  const [details, setDetails] = useState("Enter your details");
-  const [cta, setCta] = useState("Shop Now");
+  const [headline, setHeadline] = useState("");
+  const [details, setDetails] = useState("");
+  const [cta, setCta] = useState("");
   const [headlineFont, setHeadlineFont] = useState(FONTS[0].family);
   const [detailsFont, setDetailsFont] = useState(FONTS[0].family);
   const [ctaFont, setCtaFont] = useState(FONTS[0].family);
+  const [headlinePosition, setHeadlinePosition] = useState("center-top");
+  const [detailsPosition, setDetailsPosition] = useState("center");
+  const [ctaPosition, setCtaPosition] = useState("center-bottom");
   const [textColor, setTextColor] = useState("#FFFFFF");
+
+  const TEXT_POSITIONS = [
+    { id: "center-top", name: "Center Top" },
+    { id: "center", name: "Center" },
+    { id: "center-bottom", name: "Center Bottom" },
+    { id: "left-top", name: "Left Top" },
+    { id: "left-center", name: "Left Center" },
+    { id: "left-bottom", name: "Left Bottom" },
+    { id: "right-top", name: "Right Top" },
+    { id: "right-center", name: "Right Center" },
+    { id: "right-bottom", name: "Right Bottom" },
+  ];
+
+  // Helper to calculate position from position string
+  const getTextPosition = (position: string, canvasWidth: number, canvasHeight: number) => {
+    switch (position) {
+      case "center-top":
+        return { x: canvasWidth / 2, y: canvasHeight * 0.15 };
+      case "center":
+        return { x: canvasWidth / 2, y: canvasHeight * 0.5 };
+      case "center-bottom":
+        return { x: canvasWidth / 2, y: canvasHeight * 0.85 };
+      case "left-top":
+        return { x: canvasWidth * 0.15, y: canvasHeight * 0.15 };
+      case "left-center":
+        return { x: canvasWidth * 0.15, y: canvasHeight * 0.5 };
+      case "left-bottom":
+        return { x: canvasWidth * 0.15, y: canvasHeight * 0.85 };
+      case "right-top":
+        return { x: canvasWidth * 0.85, y: canvasHeight * 0.15 };
+      case "right-center":
+        return { x: canvasWidth * 0.85, y: canvasHeight * 0.5 };
+      case "right-bottom":
+        return { x: canvasWidth * 0.85, y: canvasHeight * 0.85 };
+      default:
+        return { x: canvasWidth / 2, y: canvasHeight * 0.5 };
+    }
+  };
   
   // UI State
   const [isLoading, setIsLoading] = useState(false);
@@ -280,47 +321,53 @@ export default function PhotoEditorPage() {
         
         ctx.fillStyle = textColor;
         
-        // Headline with wrapping (bold)
-        const headlineFontSize = Math.round(canvas.width * 0.08);
-        const headlineStartY = canvas.height * 0.3;
-        const headlineEndY = drawMultilineText(
-          headline, 
-          canvas.width / 2, 
-          headlineStartY, 
-          canvas.width * 0.85, 
-          headlineFontSize, 
-          headlineFont,
-          true
-        );
+        // Headline with wrapping (bold) - only if has content
+        if (headline.trim()) {
+          const headlineFontSize = Math.round(canvas.width * 0.08);
+          const headlinePos = getTextPosition(headlinePosition, canvas.width, canvas.height);
+          drawMultilineText(
+            headline, 
+            headlinePos.x, 
+            headlinePos.y, 
+            canvas.width * 0.85, 
+            headlineFontSize, 
+            headlineFont,
+            true
+          );
+        }
         
-        // Details with wrapping (positioned after headline)
-        const detailsFontSize = Math.round(canvas.width * 0.04);
-        const detailsStartY = headlineEndY + 20;
-        const detailsEndY = drawMultilineText(
-          details, 
-          canvas.width / 2, 
-          detailsStartY, 
-          canvas.width * 0.85, 
-          detailsFontSize, 
-          detailsFont,
-          false
-        );
+        // Details with wrapping - only if has content
+        if (details.trim()) {
+          const detailsFontSize = Math.round(canvas.width * 0.04);
+          const detailsPos = getTextPosition(detailsPosition, canvas.width, canvas.height);
+          drawMultilineText(
+            details, 
+            detailsPos.x, 
+            detailsPos.y, 
+            canvas.width * 0.85, 
+            detailsFontSize, 
+            detailsFont,
+            false
+          );
+        }
         
-        // CTA with wrapping (bold, positioned near bottom)
-        const ctaFontSize = Math.round(canvas.width * 0.05);
-        const ctaY = Math.max(detailsEndY + 30, canvas.height * 0.65);
-        drawMultilineText(
-          cta, 
-          canvas.width / 2, 
-          ctaY, 
-          canvas.width * 0.85, 
-          ctaFontSize, 
-          ctaFont,
-          true
-        );
+        // CTA with wrapping (bold) - only if has content
+        if (cta.trim()) {
+          const ctaFontSize = Math.round(canvas.width * 0.05);
+          const ctaPos = getTextPosition(ctaPosition, canvas.width, canvas.height);
+          drawMultilineText(
+            cta, 
+            ctaPos.x, 
+            ctaPos.y, 
+            canvas.width * 0.85, 
+            ctaFontSize, 
+            ctaFont,
+            true
+          );
+        }
       };
     }
-  }, [step, editedUrl, headline, details, cta, headlineFont, detailsFont, ctaFont, textColor]);
+  }, [step, editedUrl, headline, details, cta, headlineFont, detailsFont, ctaFont, headlinePosition, detailsPosition, ctaPosition, textColor]);
 
   // Step 2: Export Final
   const handleExport = async () => {
@@ -328,17 +375,65 @@ export default function PhotoEditorPage() {
     setIsLoading(true);
     
     try {
+      // Get image dimensions for positioning
+      const img = new Image();
+      img.src = editedUrl;
+      await new Promise((resolve) => {
+        img.onload = resolve;
+      });
+      
+      const imageWidth = img.width || 1080;
+      const imageHeight = img.height || 1080;
+      
+      // Build text fields array (only include non-empty fields)
+      const textFields: Array<{ text: string; font: string; fontSize: number; color: string; x: number; y: number; maxWidth: number }> = [];
+      
+      if (headline.trim()) {
+        const pos = getTextPosition(headlinePosition, imageWidth, imageHeight);
+        textFields.push({
+          text: headline,
+          font: headlineFont,
+          fontSize: 80,
+          color: textColor,
+          x: pos.x,
+          y: pos.y,
+          maxWidth: imageWidth * 0.85
+        });
+      }
+      
+      if (details.trim()) {
+        const pos = getTextPosition(detailsPosition, imageWidth, imageHeight);
+        textFields.push({
+          text: details,
+          font: detailsFont,
+          fontSize: 40,
+          color: textColor,
+          x: pos.x,
+          y: pos.y,
+          maxWidth: imageWidth * 0.85
+        });
+      }
+      
+      if (cta.trim()) {
+        const pos = getTextPosition(ctaPosition, imageWidth, imageHeight);
+        textFields.push({
+          text: cta,
+          font: ctaFont,
+          fontSize: 50,
+          color: textColor,
+          x: pos.x,
+          y: pos.y,
+          maxWidth: imageWidth * 0.85
+        });
+      }
+      
       // For high quality, we'll use the API
       const response = await fetch("/api/tools/add-text-overlay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           imageUrl: editedUrl,
-          textFields: [
-            { text: headline, font: headlineFont, fontSize: 80, color: textColor, x: 540, y: 300, maxWidth: 900 },
-            { text: details, font: detailsFont, fontSize: 40, color: textColor, x: 540, y: 450, maxWidth: 900 },
-            { text: cta, font: ctaFont, fontSize: 50, color: textColor, x: 540, y: 650, maxWidth: 900 },
-          ],
+          textFields,
         }),
       });
       
@@ -536,101 +631,94 @@ export default function PhotoEditorPage() {
 
                   <div className="space-y-4">
                     <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Headline</label>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Headline (Optional)</label>
                       <textarea 
-                        rows={3}
+                        rows={2}
                         value={headline} 
                         onChange={(e) => setHeadline(e.target.value)}
-                        onKeyDown={(e) => {
-                          // Allow Enter to create line breaks
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const textarea = e.target as HTMLTextAreaElement;
-                            const start = textarea.selectionStart;
-                            const end = textarea.selectionEnd;
-                            setHeadline(headline.substring(0, start) + '\n' + headline.substring(end));
-                            // Reset cursor position after state update
-                            setTimeout(() => {
-                              textarea.selectionStart = textarea.selectionEnd = start + 1;
-                            }, 0);
-                          }
-                        }}
-                        placeholder="Type your headline... Press Enter for new line"
+                        placeholder="Leave empty to hide..."
                         className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-accent focus:ring-accent resize-y"
                       />
-                      <select 
-                        value={headlineFont} 
-                        onChange={(e) => setHeadlineFont(e.target.value)}
-                        className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
-                      >
-                        {FONTS.map(f => (
-                          <option key={f.id} value={f.family}>{f.name}</option>
-                        ))}
-                      </select>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <select 
+                          value={headlineFont} 
+                          onChange={(e) => setHeadlineFont(e.target.value)}
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                        >
+                          {FONTS.map(f => (
+                            <option key={f.id} value={f.family}>{f.name}</option>
+                          ))}
+                        </select>
+                        <select 
+                          value={headlinePosition} 
+                          onChange={(e) => setHeadlinePosition(e.target.value)}
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                        >
+                          {TEXT_POSITIONS.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Details</label>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Details (Optional)</label>
                       <textarea 
-                        rows={3}
+                        rows={2}
                         value={details} 
                         onChange={(e) => setDetails(e.target.value)}
-                        onKeyDown={(e) => {
-                          // Allow Enter to create line breaks
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const textarea = e.target as HTMLTextAreaElement;
-                            const start = textarea.selectionStart;
-                            const end = textarea.selectionEnd;
-                            setDetails(details.substring(0, start) + '\n' + details.substring(end));
-                            setTimeout(() => {
-                              textarea.selectionStart = textarea.selectionEnd = start + 1;
-                            }, 0);
-                          }
-                        }}
-                        placeholder="Type your details... Press Enter for new line"
+                        placeholder="Leave empty to hide..."
                         className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-accent focus:ring-accent resize-y"
                       />
-                      <select 
-                        value={detailsFont} 
-                        onChange={(e) => setDetailsFont(e.target.value)}
-                        className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
-                      >
-                        {FONTS.map(f => (
-                          <option key={f.id} value={f.family}>{f.name}</option>
-                        ))}
-                      </select>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <select 
+                          value={detailsFont} 
+                          onChange={(e) => setDetailsFont(e.target.value)}
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                        >
+                          {FONTS.map(f => (
+                            <option key={f.id} value={f.family}>{f.name}</option>
+                          ))}
+                        </select>
+                        <select 
+                          value={detailsPosition} 
+                          onChange={(e) => setDetailsPosition(e.target.value)}
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                        >
+                          {TEXT_POSITIONS.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Call to Action</label>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Call to Action (Optional)</label>
                       <textarea 
                         rows={2}
                         value={cta} 
                         onChange={(e) => setCta(e.target.value)}
-                        onKeyDown={(e) => {
-                          // Allow Enter to create line breaks
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const textarea = e.target as HTMLTextAreaElement;
-                            const start = textarea.selectionStart;
-                            const end = textarea.selectionEnd;
-                            setCta(cta.substring(0, start) + '\n' + cta.substring(end));
-                            setTimeout(() => {
-                              textarea.selectionStart = textarea.selectionEnd = start + 1;
-                            }, 0);
-                          }
-                        }}
-                        placeholder="Type your CTA... Press Enter for new line"
+                        placeholder="Leave empty to hide..."
                         className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-accent focus:ring-accent resize-y"
                       />
-                      <select 
-                        value={ctaFont} 
-                        onChange={(e) => setCtaFont(e.target.value)}
-                        className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
-                      >
-                        {FONTS.map(f => (
-                          <option key={f.id} value={f.family}>{f.name}</option>
-                        ))}
-                      </select>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <select 
+                          value={ctaFont} 
+                          onChange={(e) => setCtaFont(e.target.value)}
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                        >
+                          {FONTS.map(f => (
+                            <option key={f.id} value={f.family}>{f.name}</option>
+                          ))}
+                        </select>
+                        <select 
+                          value={ctaPosition} 
+                          onChange={(e) => setCtaPosition(e.target.value)}
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                        >
+                          {TEXT_POSITIONS.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
 
                     <div>
