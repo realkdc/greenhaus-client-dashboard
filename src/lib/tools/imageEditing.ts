@@ -167,11 +167,12 @@ export async function applyTexturesWithSharp(
     image = sharp(warmBuffer).rotate();
   }
   
-  // Resize to target dimensions if provided (for aspect ratio)
+  // Crop to target dimensions if provided (for aspect ratio changes)
+  // 'cover' means: scale to fill, maintain aspect ratio, crop excess from center
   if (targetWidth && targetHeight) {
     image = image.resize(targetWidth, targetHeight, {
-      fit: 'cover',
-      position: 'center'
+      fit: 'cover',        // Crop to fit (don't distort)
+      position: 'center'   // Crop from center
     });
   }
   

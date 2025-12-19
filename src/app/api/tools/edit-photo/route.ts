@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Calculate target dimensions based on aspect ratio
+    // When aspect ratio is selected, we CROP (not distort) to fit those dimensions
     const originalWidth = imageMetadata.width || 1080;
     const originalHeight = imageMetadata.height || 1080;
     
@@ -64,24 +65,24 @@ export async function POST(request: NextRequest) {
     
     if (aspectRatio) {
       switch (aspectRatio) {
-        case '1:1': // Square (Instagram post)
+        case '1:1': // Square (Instagram post) - crops to square
           targetWidth = 1080;
           targetHeight = 1080;
           break;
-        case '4:5': // Portrait (Instagram post)
+        case '4:5': // Portrait (Instagram post) - crops to portrait
           targetWidth = 1080;
           targetHeight = 1350;
           break;
-        case '9:16': // Story
+        case '9:16': // Story - crops to vertical story format
           targetWidth = 1080;
           targetHeight = 1920;
           break;
-        case '4:3': // Landscape
+        case '4:3': // Landscape - crops to landscape
           targetWidth = 1080;
           targetHeight = 810;
           break;
         default:
-          // Keep original dimensions
+          // Keep original dimensions (no cropping)
           break;
       }
     }
