@@ -198,20 +198,21 @@ export default function PhotoEditorPage() {
         // Draw base image
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         
-        // Apply warm filter effect (simplified client-side version - subtle)
+        // Apply warm filter - very subtle brightness/saturation boost
         if (applyWarm) {
+          // Simple brightness boost only - no color manipulation
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const data = imageData.data;
           for (let i = 0; i < data.length; i += 4) {
-            // Very subtle warm shift
-            data[i] = Math.min(255, data[i] * 1.03);     // R
-            data[i + 1] = Math.min(255, data[i + 1] * 1.01); // G
-            data[i + 2] = Math.min(255, data[i + 2] * 0.97); // B
+            // Just a tiny brightness lift
+            data[i] = Math.min(255, data[i] + 5);     // R
+            data[i + 1] = Math.min(255, data[i + 1] + 3); // G
+            data[i + 2] = data[i + 2];                // B unchanged
           }
           ctx.putImageData(imageData, 0, 0);
         }
         
-        // Apply texture overlays (subtle)
+        // Apply texture overlays with screen blend
         const texturePromises = selectedTextures.map(textureId => {
           const texture = TEXTURES.find(t => t.id === textureId);
           if (!texture) return Promise.resolve();
@@ -222,12 +223,10 @@ export default function PhotoEditorPage() {
             texImg.src = texture.url;
             
             texImg.onload = () => {
-              // Blend texture with screen mode
+              // Screen blend - makes light flares look natural
               ctx.globalCompositeOperation = "screen";
-              ctx.globalAlpha = 0.3; // Much lower preview opacity
               ctx.drawImage(texImg, 0, 0, canvas.width, canvas.height);
               ctx.globalCompositeOperation = "source-over";
-              ctx.globalAlpha = 1.0;
               resolve();
             };
             texImg.onerror = () => resolve();

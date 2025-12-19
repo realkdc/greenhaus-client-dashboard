@@ -183,54 +183,31 @@ export async function applyTexturesWithSharp(
   // Get intelligent guidance from Gemini
   const guidance = await getGeminiTextureGuidance(imageBuffer, textureBuffers, textureNames);
   
-  // Apply textures with Gemini's guidance
+  // Apply textures - SIMPLIFIED approach (no complex opacity manipulation)
   if (textureBuffers.length > 0) {
-    const overlayPromises = textureBuffers.map(async (buf, i) => {
-      const guide = guidance[i] || {
-        blend: 'screen',
-        opacity: 0.3,
-        position: { gravity: 'center' }
-      };
+    let currentBuffer = baseBuffer;
+    
+    for (let i = 0; i < textureBuffers.length; i++) {
+      const buf = textureBuffers[i];
       
-      // Map blend modes - Sharp doesn't support 'normal', use 'over' instead
-      let blendMode: 'over' | 'in' | 'out' | 'atop' | 'xor' | 'add' | 'saturate' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'colour-dodge' | 'colour-burn' | 'hard-light' | 'soft-light' | 'difference' | 'exclusion' = 'screen';
-      
-      if (guide.blend === 'overlay') blendMode = 'overlay';
-      else if (guide.blend === 'multiply') blendMode = 'multiply';
-      else if (guide.blend === 'screen') blendMode = 'screen';
-      else if (guide.blend === 'normal') blendMode = 'over';
-
-      let textureSharp = sharp(buf);
-      
-      // Resize to match base image dimensions exactly (cover)
-      textureSharp = textureSharp.resize(width, height, { fit: 'cover' });
-      
-      // Apply opacity carefully (Cap at 0.4 even if AI suggests higher)
-      const safeOpacity = Math.min(guide.opacity || 0.15, 0.4);
-      const alphaValue = Math.round(safeOpacity * 255);
-      const mask = Buffer.alloc(width * height, alphaValue);
-      const textureWithOpacity = await textureSharp
-        .ensureAlpha()
-        .composite([{ 
-          input: mask, 
-          raw: { width, height, channels: 1 }, 
-          blend: 'dest-in' 
-        }])
+      // Simply resize texture to match base image
+      const resizedTexture = await sharp(buf)
+        .resize(width, height, { fit: 'cover' })
         .toBuffer();
       
-      return {
-        input: textureWithOpacity,
-        blend: blendMode,
-        top: 0,
-        left: 0
-      };
-    });
+      // Composite with screen blend - this is what makes light flares work
+      // Screen blend naturally makes dark areas transparent
+      currentBuffer = await sharp(currentBuffer)
+        .composite([{
+          input: resizedTexture,
+          blend: 'screen',
+          top: 0,
+          left: 0
+        }])
+        .toBuffer();
+    }
     
-    const overlays = await Promise.all(overlayPromises);
-    
-    return await sharp(baseBuffer)
-      .composite(overlays)
-      .toBuffer();
+    return currentBuffer;
   }
   
   return baseBuffer;
