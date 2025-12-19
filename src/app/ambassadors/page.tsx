@@ -586,8 +586,31 @@ export default function AmbassadorsPage() {
       if (!response.ok) {
         throw new Error('Failed to fetch ambassadors');
       }
-      const data = await response.json();
-      setAmbassadors(data);
+      const rawData = await response.json();
+      
+      // Map data to ensure all fields exist
+      const mappedData = rawData.map((data: any) => ({
+        id: data.id,
+        firstName: data.firstName || data.name?.split(' ')[0] || '',
+        lastName: data.lastName || data.name?.split(' ').slice(1).join(' ') || '',
+        email: data.email || undefined,
+        handle: data.handle || undefined,
+        tier: data.tier || 'seed',
+        code: data.code || '',
+        qrUrl: data.qrUrl || '',
+        qrType: data.qrType || "public",
+        qrUrlPublic: data.qrUrlPublic || data.qrUrl || '',
+        qrUrlStaff: data.qrUrlStaff || undefined,
+        scanCount: data.scanCount || 0,
+        scanCountPublic: data.scanCountPublic || 0,
+        scanCountStaff: data.scanCountStaff || 0,
+        orders: data.orders || 0,
+        points: data.points || 0,
+        createdAt: data.createdAt || null,
+        createdBy: data.createdBy || '',
+      }));
+      
+      setAmbassadors(mappedData);
       setAmbassadorsLoading(false);
       setAmbassadorsError(null);
     } catch (error) {
