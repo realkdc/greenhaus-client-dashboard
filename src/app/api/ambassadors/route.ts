@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createAmbassador } from '@/lib/ambassadors';
+import { createAmbassador, listAmbassadors } from '@/lib/ambassadors';
+
+export async function GET() {
+  try {
+    const ambassadors = await listAmbassadors();
+    return NextResponse.json(ambassadors);
+  } catch (error) {
+    console.error('Error fetching ambassadors:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
 
 const CreateAmbassadorSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),

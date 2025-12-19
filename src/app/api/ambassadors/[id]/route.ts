@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { updateAmbassador } from '@/lib/ambassadors';
+import { updateAmbassador, deleteAmbassador } from '@/lib/ambassadors';
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    await deleteAmbassador(params.id);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting ambassador:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
 
 const UpdateAmbassadorSchema = z.object({
   firstName: z.string().min(1, 'First name is required').optional(),

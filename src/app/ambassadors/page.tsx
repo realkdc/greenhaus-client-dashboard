@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/components/auth-provider';
-import { db } from '@/lib/firebase';
-import { collection, onSnapshot, orderBy, query, doc, deleteDoc } from 'firebase/firestore';
 import QRCode from 'qrcode';
 import Link from 'next/link';
 
@@ -582,57 +580,26 @@ export default function AmbassadorsPage() {
   const [editingAmbassador, setEditingAmbassador] = useState<AmbassadorRecord | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!db) {
-      setAmbassadorsLoading(false);
-      setAmbassadorsError('Firestore is not configured. Set NEXT_PUBLIC_FIREBASE_* env vars.');
-      return;
-    }
-
-    const ambassadorsQuery = query(
-      collection(db, 'ambassadors'),
-      orderBy('createdAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(
-      ambassadorsQuery,
-      (snapshot) => {
-        const next: AmbassadorRecord[] = snapshot.docs.map((docSnap) => {
-          const data = docSnap.data();
-          return {
-            id: docSnap.id,
-            firstName: data.firstName || '',
-            lastName: data.lastName || '',
-            email: data.email || undefined,
-            handle: data.handle || undefined,
-            tier: data.tier || 'seed',
-            code: data.code || '',
-            qrUrl: data.qrUrl || '',
-            qrType: data.qrType || "public",
-            qrUrlPublic: data.qrUrlPublic || data.qrUrl || '',
-            qrUrlStaff: data.qrUrlStaff || undefined,
-            scanCount: data.scanCount || 0,
-            scanCountPublic: data.scanCountPublic || 0,
-            scanCountStaff: data.scanCountStaff || 0,
-            orders: data.orders || 0,
-            points: data.points || 0,
-            createdAt: data.createdAt || null,
-            createdBy: data.createdBy || '',
-          };
-        });
-        setAmbassadors(next);
-        setAmbassadorsLoading(false);
-        setAmbassadorsError(null);
-      },
-      (error) => {
-        console.error('Failed to load ambassadors', error);
-        setAmbassadorsError('Unable to load ambassadors. Refresh and try again.');
-        setAmbassadorsLoading(false);
+  const fetchAmbassadors = useCallback(async () => {
+    try {
+      const response = await fetch('/api/ambassadors');
+      if (!response.ok) {
+        throw new Error('Failed to fetch ambassadors');
       }
-    );
-
-    return () => unsubscribe();
+      const data = await response.json();
+      setAmbassadors(data);
+      setAmbassadorsLoading(false);
+      setAmbassadorsError(null);
+    } catch (error) {
+      console.error('Failed to load ambassadors', error);
+      setAmbassadorsError('Unable to load ambassadors. Refresh and try again.');
+      setAmbassadorsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchAmbassadors();
+  }, [fetchAmbassadors]);
 
   const handleShowQR = (ambassador: AmbassadorRecord, qrType: "public" | "staff") => {
     setSelectedAmbassador(ambassador);
@@ -666,6 +633,7 @@ export default function AmbassadorsPage() {
       const errorData = await response.json();
       throw new Error(errorData.error || 'Failed to update ambassador');
     }
+    await fetchAmbassadors();
   };
 
   const handleAddAmbassador = async (data: { firstName: string; lastName: string; email?: string; handle?: string; tier: AmbassadorTier; qrType: "public" | "staff" }) => {
@@ -684,6 +652,7 @@ export default function AmbassadorsPage() {
       const errorData = await response.json();
       throw new Error(errorData.error || 'Failed to create ambassador');
     }
+    await fetchAmbassadors();
   };
 
   const handleDeleteAmbassador = async (id: string) => {
@@ -691,13 +660,15 @@ export default function AmbassadorsPage() {
       return;
     }
 
-    if (!db) {
-      alert('Database not available. Please refresh and try again.');
-      return;
-    }
-
     try {
-      await deleteDoc(doc(db, 'ambassadors', id));
+      const response = await fetch(`/api/ambassadors/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete ambassador');
+      }
+      await fetchAmbassadors();
     } catch (error) {
       console.error('Failed to delete ambassador:', error);
       alert('Failed to delete ambassador. Please try again.');
@@ -717,7 +688,15 @@ export default function AmbassadorsPage() {
   const formatTimestamp = (ts: any): string => {
     if (!ts) return '—';
     try {
-      const date = ts.toDate ? ts.toDate() : new Date(ts);
+      let date: Date;
+      if (ts.toDate) {
+        date = ts.toDate();
+      } else if (ts._seconds !== undefined) {
+        date = new Date(ts._seconds * 1000);
+      } else {
+        date = new Date(ts);
+      }
+      
       return new Intl.DateTimeFormat(undefined, {
         month: 'short',
         day: 'numeric',
