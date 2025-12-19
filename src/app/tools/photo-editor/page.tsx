@@ -409,89 +409,183 @@ export default function PhotoEditorPage() {
     }
   }, [step, editedUrl, headline, details, cta, headlineFont, detailsFont, ctaFont, headlinePosition, detailsPosition, ctaPosition, textColor]);
 
-  // Step 2: Export Final
+  // Step 2: Export Final (using client-side canvas for proper font rendering)
   const handleExport = async () => {
     if (!editedUrl) return;
     setIsLoading(true);
     
     try {
-      // Get image dimensions for positioning
+      // Load the edited image
       const img = new Image();
+      img.crossOrigin = "anonymous";
       img.src = editedUrl;
-      await new Promise((resolve) => {
+      
+      await new Promise((resolve, reject) => {
         img.onload = resolve;
+        img.onerror = reject;
       });
       
-      const imageWidth = img.width || 1080;
-      const imageHeight = img.height || 1080;
+      // Create high-res canvas
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = img.width;
+      exportCanvas.height = img.height;
+      const ctx = exportCanvas.getContext('2d');
+      if (!ctx) throw new Error('Could not get canvas context');
       
-      // Build text fields array (only include non-empty fields)
-      const textFields: Array<{ text: string; font: string; fontSize: number; color: string; x: number; y: number; maxWidth: number }> = [];
+      // Draw the edited image (with aesthetics already applied)
+      ctx.drawImage(img, 0, 0);
       
-      if (headline.trim()) {
-        const pos = getTextPosition(headlinePosition, imageWidth, imageHeight);
-        textFields.push({
-          text: headline,
-          font: headlineFont,
-          fontSize: 80,
-          color: textColor,
-          x: pos.x,
-          y: pos.y,
-          maxWidth: imageWidth * 0.85
+      // Helper to draw text with shadow (same as preview)
+      const drawTextWithShadow = (
+        text: string,
+        x: number,
+        y: number,
+        mainColor: string,
+        fontSize: number,
+        font: string,
+        isBold: boolean = false
+      ) => {
+        ctx.font = (isBold ? 'bold ' : '') + fontSize + `px "${font}"`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        
+        const isPink = mainColor.toLowerCase().includes('ff69b4') || mainColor.toLowerCase().includes('ff1493') || 
+                       mainColor.toLowerCase().includes('ff') && (mainColor.toLowerCase().includes('b4') || mainColor.toLowerCase().includes('93'));
+        
+        if (isPink) {
+          // Darker pink shadow (offset slightly down and right)
+          const shadowColor = mainColor === '#FF69B4' || mainColor.toLowerCase() === '#ff69b4' ? '#D81B60' : '#C2185B';
+          ctx.fillStyle = shadowColor;
+          ctx.fillText(text, x + 3, y + 3); // Offset shadow
+          // Main brighter pink on top
+          ctx.fillStyle = mainColor;
+          ctx.fillText(text, x, y);
+        } else {
+          // For non-pink colors, add subtle shadow for readability
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+          ctx.shadowBlur = 4;
+          ctx.shadowOffsetX = 2;
+          ctx.shadowOffsetY = 2;
+          ctx.fillStyle = mainColor;
+          ctx.fillText(text, x, y);
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+        }
+      };
+      
+      // Helper to draw multiline text
+      const drawMultilineTextExport = (
+        text: string,
+        x: number,
+        y: number,
+        maxWidth: number,
+        fontSize: number,
+        font: string,
+        isBold: boolean = false,
+        lineHeight: number = 1.2
+      ): number => {
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        
+        const lines = text.split('\n');
+        let currentY = y;
+        
+        lines.forEach((line, lineIdx) => {
+          const words = line.split(' ');
+          let currentLine = '';
+          
+          words.forEach(word => {
+            const testLine = currentLine + (currentLine ? ' ' : '') + word;
+            ctx.font = (isBold ? 'bold ' : '') + fontSize + `px "${font}"`;
+            const metrics = ctx.measureText(testLine);
+            
+            if (metrics.width > maxWidth && currentLine) {
+              drawTextWithShadow(currentLine, x, currentY, textColor, fontSize, font, isBold);
+              currentY += fontSize * lineHeight;
+              currentLine = word;
+            } else {
+              currentLine = testLine;
+            }
+          });
+          
+          if (currentLine) {
+            drawTextWithShadow(currentLine, x, currentY, textColor, fontSize, font, isBold);
+            currentY += fontSize * lineHeight;
+          }
+          
+          if (lineIdx < lines.length - 1) {
+            currentY += fontSize * 0.3;
+          }
         });
+        
+        return currentY;
+      };
+      
+      // Draw all text fields
+      if (headline.trim()) {
+        const headlineFontSize = Math.round(exportCanvas.width * 0.08);
+        const headlinePos = getTextPosition(headlinePosition, exportCanvas.width, exportCanvas.height);
+        drawMultilineTextExport(
+          headline,
+          headlinePos.x,
+          headlinePos.y,
+          exportCanvas.width * 0.85,
+          headlineFontSize,
+          headlineFont,
+          true
+        );
       }
       
       if (details.trim()) {
-        const pos = getTextPosition(detailsPosition, imageWidth, imageHeight);
-        textFields.push({
-          text: details,
-          font: detailsFont,
-          fontSize: 40,
-          color: textColor,
-          x: pos.x,
-          y: pos.y,
-          maxWidth: imageWidth * 0.85
-        });
+        const detailsFontSize = Math.round(exportCanvas.width * 0.04);
+        const detailsPos = getTextPosition(detailsPosition, exportCanvas.width, exportCanvas.height);
+        drawMultilineTextExport(
+          details,
+          detailsPos.x,
+          detailsPos.y,
+          exportCanvas.width * 0.85,
+          detailsFontSize,
+          detailsFont,
+          false
+        );
       }
       
       if (cta.trim()) {
-        const pos = getTextPosition(ctaPosition, imageWidth, imageHeight);
-        textFields.push({
-          text: cta,
-          font: ctaFont,
-          fontSize: 50,
-          color: textColor,
-          x: pos.x,
-          y: pos.y,
-          maxWidth: imageWidth * 0.85
-        });
+        const ctaFontSize = Math.round(exportCanvas.width * 0.05);
+        const ctaPos = getTextPosition(ctaPosition, exportCanvas.width, exportCanvas.height);
+        drawMultilineTextExport(
+          cta,
+          ctaPos.x,
+          ctaPos.y,
+          exportCanvas.width * 0.85,
+          ctaFontSize,
+          ctaFont,
+          true
+        );
       }
       
-      // For high quality, we'll use the API
-      const response = await fetch("/api/tools/add-text-overlay", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageUrl: editedUrl,
-          textFields,
-        }),
-      });
-      
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
-      
-      setFinalUrl(data.finalImageUrl);
-      toast.success("Ready to download!");
-      
-      // Auto-download
-      const link = document.createElement('a');
-      link.href = data.finalImageUrl;
-      link.download = `greenhaus-post-${Date.now()}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Convert canvas to blob and download
+      exportCanvas.toBlob((blob) => {
+        if (!blob) {
+          toast.error("Failed to create image");
+          return;
+        }
+        
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = `greenhaus-post-${Date.now()}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+        
+        toast.success("Downloaded successfully!");
+      }, 'image/jpeg', 0.95);
       
     } catch (err: any) {
+      console.error('Export error:', err);
       toast.error(err.message || "Failed to export");
     } finally {
       setIsLoading(false);
