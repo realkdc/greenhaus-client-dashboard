@@ -69,28 +69,32 @@ export default function PhotoEditorPage() {
   ];
 
   // Helper to calculate position from position string
+  // Returns position, alignment, and maxWidth that keeps text within bounds
   const getTextPosition = (position: string, canvasWidth: number, canvasHeight: number) => {
+    const padding = canvasWidth * 0.05; // 5% padding from edges
+    const maxContentWidth = canvasWidth - (padding * 2); // Available width after padding
+    
     switch (position) {
       case "center-top":
-        return { x: canvasWidth / 2, y: canvasHeight * 0.15 };
+        return { x: canvasWidth / 2, y: canvasHeight * 0.15, align: "center" as const, maxWidth: maxContentWidth };
       case "center":
-        return { x: canvasWidth / 2, y: canvasHeight * 0.5 };
+        return { x: canvasWidth / 2, y: canvasHeight * 0.5, align: "center" as const, maxWidth: maxContentWidth };
       case "center-bottom":
-        return { x: canvasWidth / 2, y: canvasHeight * 0.85 };
+        return { x: canvasWidth / 2, y: canvasHeight * 0.85, align: "center" as const, maxWidth: maxContentWidth };
       case "left-top":
-        return { x: canvasWidth * 0.15, y: canvasHeight * 0.15 };
+        return { x: padding, y: canvasHeight * 0.15, align: "left" as const, maxWidth: canvasWidth * 0.4 }; // Max 40% width from left
       case "left-center":
-        return { x: canvasWidth * 0.15, y: canvasHeight * 0.5 };
+        return { x: padding, y: canvasHeight * 0.5, align: "left" as const, maxWidth: canvasWidth * 0.4 };
       case "left-bottom":
-        return { x: canvasWidth * 0.15, y: canvasHeight * 0.85 };
+        return { x: padding, y: canvasHeight * 0.85, align: "left" as const, maxWidth: canvasWidth * 0.4 };
       case "right-top":
-        return { x: canvasWidth * 0.85, y: canvasHeight * 0.15 };
+        return { x: canvasWidth - padding, y: canvasHeight * 0.15, align: "right" as const, maxWidth: canvasWidth * 0.4 }; // Max 40% width from right
       case "right-center":
-        return { x: canvasWidth * 0.85, y: canvasHeight * 0.5 };
+        return { x: canvasWidth - padding, y: canvasHeight * 0.5, align: "right" as const, maxWidth: canvasWidth * 0.4 };
       case "right-bottom":
-        return { x: canvasWidth * 0.85, y: canvasHeight * 0.85 };
+        return { x: canvasWidth - padding, y: canvasHeight * 0.85, align: "right" as const, maxWidth: canvasWidth * 0.4 };
       default:
-        return { x: canvasWidth / 2, y: canvasHeight * 0.5 };
+        return { x: canvasWidth / 2, y: canvasHeight * 0.5, align: "center" as const, maxWidth: maxContentWidth };
     }
   };
   
@@ -284,10 +288,11 @@ export default function PhotoEditorPage() {
           mainColor: string,
           fontSize: number,
           font: string,
+          align: "left" | "center" | "right" = "center",
           isBold: boolean = false
         ) => {
           ctx.font = (isBold ? 'bold ' : '') + fontSize + `px "${font}"`;
-          ctx.textAlign = "center";
+          ctx.textAlign = align;
           ctx.textBaseline = "top";
           
           // Check if text color is pink - if so, add shadow effect
@@ -324,10 +329,11 @@ export default function PhotoEditorPage() {
           maxWidth: number,
           fontSize: number,
           font: string,
+          align: "left" | "center" | "right" = "center",
           isBold: boolean = false,
           lineHeight: number = 1.2
         ): number => {
-          ctx.textAlign = "center";
+          ctx.textAlign = align;
           ctx.textBaseline = "top";
           
           // Split by line breaks first (manual breaks)
@@ -346,7 +352,7 @@ export default function PhotoEditorPage() {
               
               if (metrics.width > maxWidth && currentLine) {
                 // Draw current line with shadow effect and start new one
-                drawTextWithShadow(currentLine, x, currentY, textColor, fontSize, font, isBold);
+                drawTextWithShadow(currentLine, x, currentY, textColor, fontSize, font, align, isBold);
                 currentY += fontSize * lineHeight;
                 currentLine = word;
               } else {
@@ -356,7 +362,7 @@ export default function PhotoEditorPage() {
             
             // Draw the last line with shadow effect
             if (currentLine) {
-              drawTextWithShadow(currentLine, x, currentY, textColor, fontSize, font, isBold);
+              drawTextWithShadow(currentLine, x, currentY, textColor, fontSize, font, align, isBold);
               currentY += fontSize * lineHeight;
             }
             
@@ -379,9 +385,10 @@ export default function PhotoEditorPage() {
             headline, 
             headlinePos.x, 
             headlinePos.y, 
-            canvas.width * 0.85, 
+            headlinePos.maxWidth, 
             headlineFontSize, 
             headlineFont,
+            headlinePos.align,
             true
           );
         }
@@ -394,9 +401,10 @@ export default function PhotoEditorPage() {
             details, 
             detailsPos.x, 
             detailsPos.y, 
-            canvas.width * 0.85, 
+            detailsPos.maxWidth, 
             detailsFontSize, 
             detailsFont,
+            detailsPos.align,
             false
           );
         }
@@ -409,9 +417,10 @@ export default function PhotoEditorPage() {
             cta, 
             ctaPos.x, 
             ctaPos.y, 
-            canvas.width * 0.85, 
+            ctaPos.maxWidth, 
             ctaFontSize, 
             ctaFont,
+            ctaPos.align,
             true
           );
         }
@@ -453,20 +462,24 @@ export default function PhotoEditorPage() {
         mainColor: string,
         fontSize: number,
         font: string,
+        align: "left" | "center" | "right" = "center",
         isBold: boolean = false
       ) => {
         ctx.font = (isBold ? 'bold ' : '') + fontSize + `px "${font}"`;
-        ctx.textAlign = "center";
+        ctx.textAlign = align;
         ctx.textBaseline = "top";
         
         const isPink = mainColor.toLowerCase().includes('ff69b4') || mainColor.toLowerCase().includes('ff1493') || 
                        mainColor.toLowerCase().includes('ff') && (mainColor.toLowerCase().includes('b4') || mainColor.toLowerCase().includes('93'));
         
+        // Adjust shadow offset based on alignment
+        const shadowOffsetX = align === 'left' ? 2 : align === 'right' ? -2 : 3;
+        
         if (isPink) {
-          // Darker pink shadow (offset slightly down and right)
+          // Darker pink shadow (offset slightly down and right/left based on alignment)
           const shadowColor = mainColor === '#FF69B4' || mainColor.toLowerCase() === '#ff69b4' ? '#D81B60' : '#C2185B';
           ctx.fillStyle = shadowColor;
-          ctx.fillText(text, x + 3, y + 3); // Offset shadow
+          ctx.fillText(text, x + shadowOffsetX, y + 3); // Offset shadow
           // Main brighter pink on top
           ctx.fillStyle = mainColor;
           ctx.fillText(text, x, y);
@@ -474,7 +487,7 @@ export default function PhotoEditorPage() {
           // For non-pink colors, add subtle shadow for readability
           ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
           ctx.shadowBlur = 4;
-          ctx.shadowOffsetX = 2;
+          ctx.shadowOffsetX = shadowOffsetX;
           ctx.shadowOffsetY = 2;
           ctx.fillStyle = mainColor;
           ctx.fillText(text, x, y);
@@ -492,10 +505,11 @@ export default function PhotoEditorPage() {
         maxWidth: number,
         fontSize: number,
         font: string,
+        align: "left" | "center" | "right" = "center",
         isBold: boolean = false,
         lineHeight: number = 1.2
       ): number => {
-        ctx.textAlign = "center";
+        ctx.textAlign = align;
         ctx.textBaseline = "top";
         
         const lines = text.split('\n');
@@ -511,7 +525,7 @@ export default function PhotoEditorPage() {
             const metrics = ctx.measureText(testLine);
             
             if (metrics.width > maxWidth && currentLine) {
-              drawTextWithShadow(currentLine, x, currentY, textColor, fontSize, font, isBold);
+              drawTextWithShadow(currentLine, x, currentY, textColor, fontSize, font, align, isBold);
               currentY += fontSize * lineHeight;
               currentLine = word;
             } else {
@@ -520,7 +534,7 @@ export default function PhotoEditorPage() {
           });
           
           if (currentLine) {
-            drawTextWithShadow(currentLine, x, currentY, textColor, fontSize, font, isBold);
+            drawTextWithShadow(currentLine, x, currentY, textColor, fontSize, font, align, isBold);
             currentY += fontSize * lineHeight;
           }
           
@@ -540,9 +554,10 @@ export default function PhotoEditorPage() {
           headline,
           headlinePos.x,
           headlinePos.y,
-          exportCanvas.width * 0.85,
+          headlinePos.maxWidth,
           headlineFontSize,
           headlineFont,
+          headlinePos.align,
           true
         );
       }
@@ -554,9 +569,10 @@ export default function PhotoEditorPage() {
           details,
           detailsPos.x,
           detailsPos.y,
-          exportCanvas.width * 0.85,
+          detailsPos.maxWidth,
           detailsFontSize,
           detailsFont,
+          detailsPos.align,
           false
         );
       }
@@ -568,9 +584,10 @@ export default function PhotoEditorPage() {
           cta,
           ctaPos.x,
           ctaPos.y,
-          exportCanvas.width * 0.85,
+          ctaPos.maxWidth,
           ctaFontSize,
           ctaFont,
+          ctaPos.align,
           true
         );
       }
