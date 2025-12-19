@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { imageUrl, textureUrls, applyWarmFilter, effectStrength, aspectRatio } = body;
+    const { imageUrl, textureUrls, applyWarmFilter, effectStrength, warmStrength, flareStrength, grainStrength, aspectRatio } = body;
 
     // Get base URL for relative texture paths
     const protocol = request.headers.get('x-forwarded-proto') || 'http';
@@ -95,7 +95,11 @@ export async function POST(request: NextRequest) {
       targetWidth,
       targetHeight,
       textureNames,
-      typeof effectStrength === "number" ? effectStrength : 0.6
+      {
+        warm: typeof warmStrength === "number" ? warmStrength : (typeof effectStrength === "number" ? effectStrength : 0.6),
+        flare: typeof flareStrength === "number" ? flareStrength : (typeof effectStrength === "number" ? effectStrength : 0.6),
+        grain: typeof grainStrength === "number" ? grainStrength : 0.25,
+      }
     );
 
     // 4. Upload result to Vercel Blob (PNG = lossless, avoids "grainy" JPEG artifacts)

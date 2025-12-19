@@ -43,7 +43,10 @@ export default function PhotoEditorPage() {
   const [selectedTextures, setSelectedTextures] = useState<string[]>([]);
   const [applyWarm, setApplyWarm] = useState(true);
   const [aspectRatio, setAspectRatio] = useState("original");
-  const [effectStrength, setEffectStrength] = useState(60); // 0-100
+  // Separate strength controls (0-100)
+  const [warmthStrength, setWarmthStrength] = useState(60);
+  const [flareStrength, setFlareStrength] = useState(70);
+  const [grainStrength, setGrainStrength] = useState(25);
   
   // Text State
   const [headline, setHeadline] = useState("");
@@ -167,7 +170,9 @@ export default function PhotoEditorPage() {
           textureUrls: selectedTextures.map(id => TEXTURES.find(t => t.id === id)?.url),
           applyWarmFilter: applyWarm,
           aspectRatio: aspectRatio === "original" ? undefined : aspectRatio,
-          effectStrength: effectStrength / 100,
+          warmStrength: warmthStrength / 100,
+          flareStrength: flareStrength / 100,
+          grainStrength: grainStrength / 100,
         }),
       });
       
@@ -207,7 +212,7 @@ export default function PhotoEditorPage() {
         
         // Apply warm filter - golden glow effect
         if (applyWarm) {
-          const s = Math.max(0, Math.min(effectStrength / 100, 1));
+          const s = Math.max(0, Math.min(warmthStrength / 100, 1));
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const data = imageData.data;
           for (let i = 0; i < data.length; i += 4) {
@@ -244,10 +249,14 @@ export default function PhotoEditorPage() {
               
               texImg.onload = () => {
                 const isNoise = texture.id.startsWith("noise");
-                const s = Math.max(0, Math.min(effectStrength / 100, 1));
+                const flareS = Math.max(0, Math.min(flareStrength / 100, 1));
+                const grainS = Math.max(0, Math.min(grainStrength / 100, 1));
                 // Light flares: screen, Grain: overlay (very subtle)
                 ctx.globalCompositeOperation = isNoise ? "overlay" : "screen";
-                ctx.globalAlpha = isNoise ? (0.03 + 0.12 * s) : (0.20 + 0.50 * s);
+                // Grain can be turned up independently now
+                ctx.globalAlpha = isNoise
+                  ? (0.02 + 0.28 * grainS)   // 2% -> 30%
+                  : (0.15 + 0.75 * flareS);  // 15% -> 90%
                 ctx.drawImage(texImg, 0, 0, canvas.width, canvas.height);
                 ctx.globalCompositeOperation = "source-over";
                 ctx.globalAlpha = 1.0;
@@ -265,7 +274,7 @@ export default function PhotoEditorPage() {
         console.error("Failed to load image for preview");
       };
     }
-  }, [step, originalUrl, applyWarm, selectedTextures, aspectRatio, effectStrength]);
+  }, [step, originalUrl, applyWarm, selectedTextures, aspectRatio, warmthStrength, flareStrength, grainStrength]);
 
   // Step 2: Draw on Canvas for preview with text
   useEffect(() => {
@@ -748,20 +757,50 @@ export default function PhotoEditorPage() {
 
                     <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-bold text-slate-900">Effect Strength</span>
-                        <span className="text-xs font-medium text-slate-600">{effectStrength}%</span>
+                        <span className="text-sm font-bold text-slate-900">Warmth</span>
+                        <span className="text-xs font-medium text-slate-600">{warmthStrength}%</span>
                       </div>
                       <input
                         type="range"
                         min={0}
                         max={100}
-                        value={effectStrength}
-                        onChange={(e) => setEffectStrength(parseInt(e.target.value, 10))}
+                        value={warmthStrength}
+                        onChange={(e) => setWarmthStrength(parseInt(e.target.value, 10))}
                         className="mt-2 w-full"
                       />
-                      <p className="mt-1 text-xs text-slate-500">
-                        Turn this up for stronger warmth + flares. Grain stays subtle.
-                      </p>
+                      <p className="mt-1 text-xs text-slate-500">Controls the warm filter only.</p>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-slate-900">Flares</span>
+                        <span className="text-xs font-medium text-slate-600">{flareStrength}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={flareStrength}
+                        onChange={(e) => setFlareStrength(parseInt(e.target.value, 10))}
+                        className="mt-2 w-full"
+                      />
+                      <p className="mt-1 text-xs text-slate-500">Controls Light Flare strength.</p>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-slate-900">Grain</span>
+                        <span className="text-xs font-medium text-slate-600">{grainStrength}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={grainStrength}
+                        onChange={(e) => setGrainStrength(parseInt(e.target.value, 10))}
+                        className="mt-2 w-full"
+                      />
+                      <p className="mt-1 text-xs text-slate-500">Controls Grain overlays (can be strong).</p>
                     </div>
 
                     <div>
