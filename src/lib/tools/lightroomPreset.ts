@@ -17,32 +17,30 @@ export async function applyWarmFilter(input: Buffer | string): Promise<Buffer> {
   // Auto-orient based on EXIF to fix rotation
   let image = sharp(input).rotate(); // .rotate() without args auto-rotates based on EXIF
   
-  // 1. Basic adjustments (Approximated with modulations)
-  // Temperature +15 and Tint +12: shift towards yellow and magenta
-  // Sharp doesn't have direct temp/tint, but we can modulate colors
-  // More aggressive warm shift
+  // 1. Subtle Warmth (much more professional)
+  // Instead of aggressive recomb, we'll use a very light shift
   image = image.recomb([
-    [1.15, 0.05, 0.0], // R (more red)
-    [0.0, 1.05, 0.0],  // G (slightly more green for yellow shift)
-    [0.0, 0.0, 0.85],  // B (less blue)
+    [1.06, 0.0, 0.0], // R (very slight boost)
+    [0.0, 1.02, 0.0], // G
+    [0.0, 0.0, 0.94], // B (slight reduction for warmth)
   ]);
 
-  // 2. Contrast and Brightness
-  // Contrast -7, Blacks +2, Whites -15, Highlights -9
-  image = image.linear(0.95, 0.08); // slightly lower contrast, lift shadows
+  // 2. Natural Contrast & Brightness
+  // Subtle lift to the shadows for that "airy" look
+  image = image.linear(1.0, 0.02); 
 
-  // 3. Saturation and Vibrance (+5)
+  // 3. Subtle Saturation (+10%)
   image = image.modulate({
-    saturation: 1.25, // more noticeable saturation
-    brightness: 1.05,
+    saturation: 1.12,
+    brightness: 1.02,
   });
 
-  // 4. Clarity/Texture
-  // Substantial sharpening for that "Lightroom" look
+  // 4. Gentle Clarity
+  // Much softer sharpening
   image = image.sharpen({
-    sigma: 1.0,
-    m1: 2.0,
-    m2: 5.0,
+    sigma: 0.5,
+    m1: 1.0,
+    m2: 2.0,
   });
 
   // 5. Tone Curve (Approximated)

@@ -198,20 +198,20 @@ export default function PhotoEditorPage() {
         // Draw base image
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         
-        // Apply warm filter effect (simplified client-side version)
+        // Apply warm filter effect (simplified client-side version - subtle)
         if (applyWarm) {
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const data = imageData.data;
           for (let i = 0; i < data.length; i += 4) {
-            // Increase red/orange tones (warm effect)
-            data[i] = Math.min(255, data[i] * 1.05);     // R
-            data[i + 1] = Math.min(255, data[i + 1] * 1.02); // G
-            data[i + 2] = Math.min(255, data[i + 2] * 0.95); // B
+            // Very subtle warm shift
+            data[i] = Math.min(255, data[i] * 1.03);     // R
+            data[i + 1] = Math.min(255, data[i + 1] * 1.01); // G
+            data[i + 2] = Math.min(255, data[i + 2] * 0.97); // B
           }
           ctx.putImageData(imageData, 0, 0);
         }
         
-        // Apply texture overlays
+        // Apply texture overlays (subtle)
         const texturePromises = selectedTextures.map(textureId => {
           const texture = TEXTURES.find(t => t.id === textureId);
           if (!texture) return Promise.resolve();
@@ -219,22 +219,18 @@ export default function PhotoEditorPage() {
           return new Promise<void>((resolve) => {
             const texImg = new Image();
             texImg.crossOrigin = "anonymous";
-            // Use the URL directly (it's already URL encoded)
             texImg.src = texture.url;
             
             texImg.onload = () => {
               // Blend texture with screen mode
               ctx.globalCompositeOperation = "screen";
-              ctx.globalAlpha = 0.6;
+              ctx.globalAlpha = 0.3; // Much lower preview opacity
               ctx.drawImage(texImg, 0, 0, canvas.width, canvas.height);
               ctx.globalCompositeOperation = "source-over";
               ctx.globalAlpha = 1.0;
               resolve();
             };
-            texImg.onerror = (err) => {
-              console.warn(`Failed to load texture: ${texture.url}`, err);
-              resolve();
-            };
+            texImg.onerror = () => resolve();
           });
         });
         

@@ -105,23 +105,21 @@ async function getGeminiTextureGuidance(
     
     // Add the main prompt
     parts.push({
-      text: `Analyze this photo and the ${textureBuffers.length} texture overlay(s) provided. 
+      text: `Analyze this photo and the ${textureBuffers.length} texture overlay(s). 
 
-Determine the best way to apply each texture overlay to enhance the photo while maintaining a professional, natural look. Consider:
-1. Where each texture should be placed (corners, edges, center, specific areas)
-2. What opacity level would look best (0.0 to 1.0, typically 0.3-0.7 for subtle effects)
-3. What blend mode would work best (screen for light flares, overlay for noise/grain, multiply for dark textures, normal for full coverage)
+Determine the most subtle and professional way to apply these textures to enhance the photo.
+- Keep opacity low (0.15 to 0.45) for a professional look.
+- Light flares should use "screen" mode.
+- Noise/grain should use "overlay" mode.
 
-Return ONLY a valid JSON array with this exact structure (no markdown, no code blocks, just raw JSON):
+Return ONLY a valid JSON array:
 [
   {
     "blend": "screen|overlay|multiply|normal",
-    "opacity": 0.6,
+    "opacity": 0.25,
     "position": { "gravity": "north|south|east|west|center|northeast|northwest|southeast|southwest" }
   }
-]
-
-Each object in the array corresponds to each texture in order. Use "gravity" for positioning relative to edges/corners.`,
+]`,
     });
 
     const result = await model.generateContent(parts);
@@ -145,7 +143,7 @@ Each object in the array corresponds to each texture in order. Use "gravity" for
     // Return sensible defaults
     return textureBuffers.map(() => ({
       blend: 'screen',
-      opacity: 0.6,
+      opacity: 0.25,
       position: { gravity: 'center' }
     }));
   }
@@ -191,7 +189,7 @@ export async function applyTexturesWithSharp(
     const overlayPromises = textureBuffers.map(async (buf, i) => {
       const guide = guidance[i] || {
         blend: 'screen',
-        opacity: 0.6,
+        opacity: 0.3,
         position: { gravity: 'center' }
       };
       
@@ -203,23 +201,13 @@ export async function applyTexturesWithSharp(
       else if (guide.blend === 'screen') blendMode = 'screen';
       else if (guide.blend === 'normal') blendMode = 'over';
 
-      // Most brand textures (Light Flares, Noise) should be resized to cover the whole image
-      // if they are meant to be overlays.
-      const isFullFrame = true; // For now, assume brand textures are meant to be full-frame overlays
-      
       let textureSharp = sharp(buf);
       
-      // Apply opacity to the texture itself
-      // We do this by creating a uniform alpha mask and compositing with 'dest-in'
-      const texMetadata = await textureSharp.metadata();
-      const tWidth = texMetadata.width || 1080;
-      const tHeight = texMetadata.height || 1080;
+      // Resize to match base image dimensions exactly (cover)
+      textureSharp = textureSharp.resize(width, height, { fit: 'cover' });
       
-      // Resize to match base image
-      textureSharp = textureSharp.resize(width, height, { fit: 'fill' });
-      
-      // Apply opacity
-      const alphaValue = Math.round((guide.opacity || 0.6) * 255);
+      // Apply opacity carefully
+      const alphaValue = Math.round((guide.opacity || 0.3) * 255);
       const mask = Buffer.alloc(width * height, alphaValue);
       const textureWithOpacity = await textureSharp
         .ensureAlpha()
