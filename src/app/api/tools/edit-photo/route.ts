@@ -97,11 +97,11 @@ export async function POST(request: NextRequest) {
       textureNames
     );
 
-    // 4. Upload result to Vercel Blob
-    const fileName = `edited-${Date.now()}.jpg`;
+    // 4. Upload result to Vercel Blob (PNG = lossless, avoids "grainy" JPEG artifacts)
+    const fileName = `edited-${Date.now()}.png`;
     const blob = await put(`photo-editor/${fileName}`, processedBuffer, {
       access: "public",
-      contentType: "image/jpeg",
+      contentType: "image/png",
     });
 
     // 6. Record usage

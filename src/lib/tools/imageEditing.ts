@@ -182,42 +182,57 @@ export async function applyTexturesWithSharp(
   const width = metadata.width || 1080;
   const height = metadata.height || 1080;
   
-  // Get intelligent guidance from Gemini
-  const guidance = await getGeminiTextureGuidance(imageBuffer, textureBuffers, textureNames);
-  
   // Apply textures with controlled intensity
+  // IMPORTANT: Grain/Noise textures MUST NOT be applied with 'screen' at high strength,
+  // otherwise they look like heavy speckled "grain" across the whole photo.
+  // We treat textures differently based on name:
+  // - Light flares: screen @ ~35%
+  // - Grain/noise: overlay @ ~8%
   if (textureBuffers.length > 0) {
     let currentBuffer = baseBuffer;
     
     for (let i = 0; i < textureBuffers.length; i++) {
       const buf = textureBuffers[i];
+      const textureName = (textureNames[i] || "").toLowerCase();
+
+      const isNoise = textureName.includes("noise") || textureName.includes("grain");
+      const blend: "screen" | "overlay" = isNoise ? "overlay" : "screen";
+      const opacity = isNoise ? 0.08 : 0.35;
       
-      // Resize texture to match base image
-      // Use a gentler brightness reduction to avoid artifacts
-      const resizedTexture = await sharp(buf)
-        .resize(width, height, { fit: 'cover' })
-        .modulate({ brightness: 0.7 }) // Reduce to 70% (was 0.6, less aggressive)
+      // Resize texture to match base image, then apply global opacity by scaling alpha.
+      // This avoids the previous mask/composite issues and keeps the output clean.
+      const { data, info } = await sharp(buf)
+        .resize(width, height, { fit: "cover" })
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+
+      for (let p = 3; p < data.length; p += 4) {
+        data[p] = Math.round(data[p] * opacity);
+      }
+
+      const textureWithOpacity = await sharp(data, {
+        raw: { width: info.width, height: info.height, channels: 4 },
+      })
+        .png()
         .toBuffer();
       
-      // Composite with screen blend - makes light flares glow naturally
       currentBuffer = await sharp(currentBuffer)
         .composite([{
-          input: resizedTexture,
-          blend: 'screen',
+          input: textureWithOpacity,
+          blend,
           top: 0,
           left: 0
         }])
         .toBuffer();
     }
     
-    // Ensure high-quality JPEG output
     return await sharp(currentBuffer)
-      .jpeg({ quality: 95, mozjpeg: true })
+      .png()
       .toBuffer();
   }
   
-  // Ensure high-quality JPEG output even without textures
   return await sharp(baseBuffer)
-    .jpeg({ quality: 95, mozjpeg: true })
+    .png()
     .toBuffer();
 }

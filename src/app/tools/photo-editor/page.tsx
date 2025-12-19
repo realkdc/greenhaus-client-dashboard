@@ -239,9 +239,10 @@ export default function PhotoEditorPage() {
               texImg.src = texture.url;
               
               texImg.onload = () => {
-                // Screen blend - makes light flares glow naturally
-                ctx.globalCompositeOperation = "screen";
-                ctx.globalAlpha = 0.5; // Visible but not overwhelming
+                const isNoise = texture.id.startsWith("noise");
+                // Light flares: screen, Grain: overlay (very subtle)
+                ctx.globalCompositeOperation = isNoise ? "overlay" : "screen";
+                ctx.globalAlpha = isNoise ? 0.12 : 0.35;
                 ctx.drawImage(texImg, 0, 0, canvas.width, canvas.height);
                 ctx.globalCompositeOperation = "source-over";
                 ctx.globalAlpha = 1.0;
@@ -602,14 +603,15 @@ export default function PhotoEditorPage() {
         const blobUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
-        link.download = `greenhaus-post-${Date.now()}.jpg`;
+        // PNG export = lossless (keeps it crisp / HQ)
+        link.download = `greenhaus-post-${Date.now()}.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(blobUrl);
         
         toast.success("Downloaded successfully!");
-      }, 'image/jpeg', 1.0); // Maximum quality (1.0)
+      }, 'image/png'); // lossless
       
     } catch (err: any) {
       console.error('Export error:', err);
