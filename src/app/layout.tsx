@@ -5,6 +5,7 @@ import { AuthProvider } from "@/components/auth-provider";
 import MainNav from "@/components/main-nav";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
+import "./brand-fonts.css";
 
 const inter = Inter({
   variable: "--font-inter",
