@@ -17,31 +17,21 @@ export async function applyWarmFilter(input: Buffer | string): Promise<Buffer> {
   // Auto-orient based on EXIF to fix rotation
   let image = sharp(input).rotate(); // .rotate() without args auto-rotates based on EXIF
   
-  // 1. Subtle Warmth (much more professional)
-  // Instead of aggressive recomb, we'll use a very light shift
-  image = image.recomb([
-    [1.06, 0.0, 0.0], // R (very slight boost)
-    [0.0, 1.02, 0.0], // G
-    [0.0, 0.0, 0.94], // B (slight reduction for warmth)
-  ]);
-
-  // 2. Natural Contrast & Brightness
-  // Subtle lift to the shadows for that "airy" look
-  image = image.linear(1.0, 0.02); 
-
-  // 3. Subtle Saturation (+10%)
+  // 1. Safe Warmth & Brightness
+  // We use modulate because it's much safer than recomb/linear
   image = image.modulate({
-    saturation: 1.12,
-    brightness: 1.02,
+    brightness: 1.03,
+    saturation: 1.15, // Light saturation boost for brand feel
   });
 
-  // 4. Gentle Clarity
-  // Much softer sharpening
-  image = image.sharpen({
-    sigma: 0.5,
-    m1: 1.0,
-    m2: 2.0,
-  });
+  // 2. Subtle Golden Tint (Warmth)
+  // This is a much softer way to add warmth without "breaking" the colors
+  image = image.tint({ r: 255, g: 240, b: 220 }); 
+
+  // 3. Soften the look
+  // Instead of sharpening, we'll keep it natural
+  
+  return await image.toBuffer();
 
   // 5. Tone Curve (Approximated)
   // [0,0], [36,20], [147,156], [255,255]

@@ -107,17 +107,16 @@ async function getGeminiTextureGuidance(
     parts.push({
       text: `Analyze this photo and the ${textureBuffers.length} texture overlay(s). 
 
-Determine the most subtle and professional way to apply these textures to enhance the photo.
-- Keep opacity low (0.15 to 0.45) for a professional look.
-- Light flares should use "screen" mode.
-- Noise/grain should use "overlay" mode.
+Return ONLY a valid JSON array for the textures. 
+- ALWAYS use "screen" for light flares.
+- ALWAYS use "overlay" for noise/grain.
+- Keep opacity VERY LOW (between 0.1 and 0.25) to avoid a "deep-fried" or over-processed look.
 
-Return ONLY a valid JSON array:
 [
   {
-    "blend": "screen|overlay|multiply|normal",
-    "opacity": 0.25,
-    "position": { "gravity": "north|south|east|west|center|northeast|northwest|southeast|southwest" }
+    "blend": "screen",
+    "opacity": 0.15,
+    "position": { "gravity": "center" }
   }
 ]`,
     });
@@ -143,7 +142,7 @@ Return ONLY a valid JSON array:
     // Return sensible defaults
     return textureBuffers.map(() => ({
       blend: 'screen',
-      opacity: 0.25,
+      opacity: 0.15,
       position: { gravity: 'center' }
     }));
   }
@@ -206,8 +205,9 @@ export async function applyTexturesWithSharp(
       // Resize to match base image dimensions exactly (cover)
       textureSharp = textureSharp.resize(width, height, { fit: 'cover' });
       
-      // Apply opacity carefully
-      const alphaValue = Math.round((guide.opacity || 0.3) * 255);
+      // Apply opacity carefully (Cap at 0.4 even if AI suggests higher)
+      const safeOpacity = Math.min(guide.opacity || 0.15, 0.4);
+      const alphaValue = Math.round(safeOpacity * 255);
       const mask = Buffer.alloc(width * height, alphaValue);
       const textureWithOpacity = await textureSharp
         .ensureAlpha()
