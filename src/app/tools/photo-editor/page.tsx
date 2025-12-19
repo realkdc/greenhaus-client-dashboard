@@ -276,30 +276,32 @@ export default function PhotoEditorPage() {
 
                     <div>
                       <span className="mb-2 block text-sm font-bold text-slate-900">Texture Overlays</span>
-                      <div className="grid grid-cols-4 gap-2">
+                      <div className="grid grid-cols-4 gap-3">
                         {TEXTURES.map(tex => (
-                          <button
-                            key={tex.id}
-                            onClick={() => {
-                              setSelectedTextures(prev => 
-                                prev.includes(tex.id) 
-                                  ? prev.filter(id => id !== tex.id)
-                                  : [...prev, tex.id]
-                              );
-                            }}
-                            className={`relative aspect-square overflow-hidden rounded-lg border-2 transition ${
-                              selectedTextures.includes(tex.id) ? 'border-accent shadow-md' : 'border-slate-200 grayscale hover:grayscale-0'
-                            }`}
-                          >
-                            <img src={tex.url} alt={tex.name} className="h-full w-full object-cover" />
-                            {selectedTextures.includes(tex.id) && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-accent/20">
-                                <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                </svg>
-                              </div>
-                            )}
-                          </button>
+                          <div key={tex.id} className="flex flex-col">
+                            <button
+                              onClick={() => {
+                                setSelectedTextures(prev => 
+                                  prev.includes(tex.id) 
+                                    ? prev.filter(id => id !== tex.id)
+                                    : [...prev, tex.id]
+                                );
+                              }}
+                              className={`relative aspect-square overflow-hidden rounded-lg border-2 transition ${
+                                selectedTextures.includes(tex.id) ? 'border-accent shadow-md' : 'border-slate-200 grayscale hover:grayscale-0'
+                              }`}
+                            >
+                              <img src={tex.url} alt={tex.name} className="h-full w-full object-cover" />
+                              {selectedTextures.includes(tex.id) && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-accent/20">
+                                  <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </div>
+                              )}
+                            </button>
+                            <span className="mt-1.5 text-center text-xs font-medium text-slate-600">{tex.name}</span>
+                          </div>
                         ))}
                       </div>
                     </div>
