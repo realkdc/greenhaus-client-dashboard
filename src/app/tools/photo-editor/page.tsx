@@ -162,24 +162,143 @@ export default function PhotoEditorPage() {
     setIsLoading(true);
     
     try {
-      const response = await fetch("/api/tools/edit-photo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageUrl: originalUrl,
-          textureUrls: selectedTextures.map(id => TEXTURES.find(t => t.id === id)?.url),
-          applyWarmFilter: applyWarm,
-          aspectRatio: aspectRatio === "original" ? undefined : aspectRatio,
-          warmStrength: warmthStrength / 100,
-          flareStrength: flareStrength / 100,
-          grainStrength: grainStrength / 100,
-        }),
+      // IMPORTANT:
+      // We generate Step 1 using the SAME Canvas pipeline as the preview,
+      // then upload that PNG. This guarantees preview === generated === downloaded.
+
+      const loadImage = (src: string) =>
+        new Promise<HTMLImageElement>((resolve, reject) => {
+          const im = new Image();
+          im.crossOrigin = "anonymous";
+          im.onload = () => resolve(im);
+          im.onerror = reject;
+          im.src = src;
+        });
+
+      const drawCover = (
+        ctx: CanvasRenderingContext2D,
+        img: HTMLImageElement,
+        destW: number,
+        destH: number
+      ) => {
+        const srcW = img.width;
+        const srcH = img.height;
+        const srcAR = srcW / srcH;
+        const destAR = destW / destH;
+        let sx = 0, sy = 0, sw = srcW, sh = srcH;
+
+        if (srcAR > destAR) {
+          // source is wider -> crop width
+          sw = Math.round(srcH * destAR);
+          sx = Math.round((srcW - sw) / 2);
+        } else {
+          // source is taller -> crop height
+          sh = Math.round(srcW / destAR);
+          sy = Math.round((srcH - sh) / 2);
+        }
+
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, destW, destH);
+      };
+
+      const baseImg = await loadImage(originalUrl);
+
+      // Output dimensions:
+      // - If a post size is selected, use IG-standard sizes (cropped).
+      // - Otherwise keep original size, but cap huge images for stability.
+      let outW = baseImg.width;
+      let outH = baseImg.height;
+      if (aspectRatio !== "original") {
+        switch (aspectRatio) {
+          case "1:1":
+            outW = 1080; outH = 1080;
+            break;
+          case "4:5":
+            outW = 1080; outH = 1350;
+            break;
+          case "9:16":
+            outW = 1080; outH = 1920;
+            break;
+          case "4:3":
+            outW = 1080; outH = 810;
+            break;
+          default:
+            break;
+        }
+      } else {
+        const maxSide = 2500; // keep HQ but avoid browser memory spikes
+        const scale = Math.min(1, maxSide / Math.max(outW, outH));
+        outW = Math.round(outW * scale);
+        outH = Math.round(outH * scale);
+      }
+
+      const exportCanvas = document.createElement("canvas");
+      exportCanvas.width = outW;
+      exportCanvas.height = outH;
+      const ctx = exportCanvas.getContext("2d");
+      if (!ctx) throw new Error("Could not create export canvas");
+
+      // Draw base (cropped if needed)
+      if (aspectRatio !== "original") {
+        drawCover(ctx, baseImg, outW, outH);
+      } else {
+        ctx.drawImage(baseImg, 0, 0, outW, outH);
+      }
+
+      // Apply warm filter (same math as preview)
+      if (applyWarm) {
+        const s = Math.max(0, Math.min(warmthStrength / 100, 1));
+        const imageData = ctx.getImageData(0, 0, outW, outH);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+
+          data[i] = Math.min(255, r * (1 + 0.12 * s));
+          data[i + 1] = Math.min(255, g * (1 + 0.05 * s));
+          data[i + 2] = Math.min(255, b * (1 - 0.08 * s));
+
+          const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+          const sat = 1 + 0.35 * s;
+          data[i] = Math.min(255, avg + (data[i] - avg) * sat);
+          data[i + 1] = Math.min(255, avg + (data[i + 1] - avg) * sat);
+          data[i + 2] = Math.min(255, avg + (data[i + 2] - avg) * sat);
+        }
+        ctx.putImageData(imageData, 0, 0);
+      }
+
+      // Apply textures (same blend + opacity as preview)
+      if (selectedTextures.length > 0) {
+        const flareS = Math.max(0, Math.min(flareStrength / 100, 1));
+        const grainS = Math.max(0, Math.min(grainStrength / 100, 1));
+
+        for (const textureId of selectedTextures) {
+          const texture = TEXTURES.find((t) => t.id === textureId);
+          if (!texture) continue;
+          const texImg = await loadImage(texture.url);
+
+          const isNoise = texture.id.startsWith("noise");
+          ctx.globalCompositeOperation = isNoise ? "soft-light" : "screen";
+          ctx.globalAlpha = isNoise ? (0.10 + 0.60 * grainS) : (0.15 + 0.75 * flareS);
+          ctx.drawImage(texImg, 0, 0, outW, outH);
+          ctx.globalCompositeOperation = "source-over";
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        exportCanvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Failed to export PNG"))), "image/png");
       });
-      
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
-      
-      setEditedUrl(data.editedImageUrl);
+
+      const file = new File([blob], `greenhaus-post-${Date.now()}.png`, { type: "image/png" });
+      const form = new FormData();
+      form.append("file", file);
+
+      const uploadRes = await fetch("/api/tools/photo-editor/upload", { method: "POST", body: form });
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) throw new Error(uploadData.error || "Failed to upload generated image");
+
+      setEditedUrl(uploadData.url);
       setStep(2);
       toast.success("Design applied! Now add some text.");
     } catch (err: any) {
