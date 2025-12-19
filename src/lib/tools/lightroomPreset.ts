@@ -20,29 +20,29 @@ export async function applyWarmFilter(input: Buffer | string): Promise<Buffer> {
   // 1. Basic adjustments (Approximated with modulations)
   // Temperature +15 and Tint +12: shift towards yellow and magenta
   // Sharp doesn't have direct temp/tint, but we can modulate colors
+  // More aggressive warm shift
   image = image.recomb([
-    [1.05, 0.02, 0.0], // R
-    [0.0, 1.02, 0.0],  // G
-    [0.0, 0.0, 0.95],  // B
+    [1.15, 0.05, 0.0], // R (more red)
+    [0.0, 1.05, 0.0],  // G (slightly more green for yellow shift)
+    [0.0, 0.0, 0.85],  // B (less blue)
   ]);
 
   // 2. Contrast and Brightness
   // Contrast -7, Blacks +2, Whites -15, Highlights -9
-  // We'll use linear to adjust contrast and offset
-  image = image.linear(0.93, 0.05); // slightly lower contrast
+  image = image.linear(0.95, 0.08); // slightly lower contrast, lift shadows
 
   // 3. Saturation and Vibrance (+5)
   image = image.modulate({
-    saturation: 1.1, // slightly increased
-    brightness: 1.02,
+    saturation: 1.25, // more noticeable saturation
+    brightness: 1.05,
   });
 
-  // 4. Clarity/Texture (Approximated with sharpening/blurring)
-  // Sharpness is 0 in XMP, but Clarity is +10. We can use a subtle sharpen.
+  // 4. Clarity/Texture
+  // Substantial sharpening for that "Lightroom" look
   image = image.sharpen({
-    sigma: 0.5,
-    m1: 1.0,
-    m2: 2.0,
+    sigma: 1.0,
+    m1: 2.0,
+    m2: 5.0,
   });
 
   // 5. Tone Curve (Approximated)

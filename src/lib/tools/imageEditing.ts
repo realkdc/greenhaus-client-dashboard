@@ -195,64 +195,46 @@ export async function applyTexturesWithSharp(
         position: { gravity: 'center' }
       };
       
-      // Resize texture to match base image
-      const textureBuffer = await sharp(buf).resize(width, height, { fit: 'contain' }).toBuffer();
-      
-      // Calculate position based on gravity
-      // Note: Sharp composite uses top/left as the anchor point, so we position at edges/corners
-      let top = 0;
-      let left = 0;
-      if (guide.position.gravity) {
-        switch (guide.position.gravity) {
-          case 'northwest':
-            top = 0; left = 0;
-            break;
-          case 'north':
-            top = 0; left = Math.round(width / 2);
-            break;
-          case 'northeast':
-            top = 0; left = width - 100; // Offset from edge for corner placement
-            break;
-          case 'west':
-            top = Math.round(height / 2); left = 0;
-            break;
-          case 'center':
-            top = Math.round(height / 2); left = Math.round(width / 2);
-            break;
-          case 'east':
-            top = Math.round(height / 2); left = width - 100;
-            break;
-          case 'southwest':
-            top = height - 100; left = 0;
-            break;
-          case 'south':
-            top = height - 100; left = Math.round(width / 2);
-            break;
-          case 'southeast':
-            top = height - 100; left = width - 100;
-            break;
-          default:
-            top = Math.round(height / 2); left = Math.round(width / 2);
-        }
-      } else {
-        top = guide.position.y || 0;
-        left = guide.position.x || 0;
-      }
-      
       // Map blend modes - Sharp doesn't support 'normal', use 'over' instead
       let blendMode: 'over' | 'in' | 'out' | 'atop' | 'xor' | 'add' | 'saturate' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'colour-dodge' | 'colour-burn' | 'hard-light' | 'soft-light' | 'difference' | 'exclusion' = 'screen';
       
       if (guide.blend === 'overlay') blendMode = 'overlay';
       else if (guide.blend === 'multiply') blendMode = 'multiply';
       else if (guide.blend === 'screen') blendMode = 'screen';
-      else if (guide.blend === 'normal') blendMode = 'over'; // 'normal' maps to 'over' in Sharp
+      else if (guide.blend === 'normal') blendMode = 'over';
+
+      // Most brand textures (Light Flares, Noise) should be resized to cover the whole image
+      // if they are meant to be overlays.
+      const isFullFrame = true; // For now, assume brand textures are meant to be full-frame overlays
+      
+      let textureSharp = sharp(buf);
+      
+      // Apply opacity to the texture itself
+      // We do this by creating a uniform alpha mask and compositing with 'dest-in'
+      const texMetadata = await textureSharp.metadata();
+      const tWidth = texMetadata.width || 1080;
+      const tHeight = texMetadata.height || 1080;
+      
+      // Resize to match base image
+      textureSharp = textureSharp.resize(width, height, { fit: 'fill' });
+      
+      // Apply opacity
+      const alphaValue = Math.round((guide.opacity || 0.6) * 255);
+      const mask = Buffer.alloc(width * height, alphaValue);
+      const textureWithOpacity = await textureSharp
+        .ensureAlpha()
+        .composite([{ 
+          input: mask, 
+          raw: { width, height, channels: 1 }, 
+          blend: 'dest-in' 
+        }])
+        .toBuffer();
       
       return {
-        input: textureBuffer,
+        input: textureWithOpacity,
         blend: blendMode,
-        top: Math.max(0, Math.min(top, height)),
-        left: Math.max(0, Math.min(left, width)),
-        opacity: Math.max(0, Math.min(guide.opacity || 0.6, 1.0))
+        top: 0,
+        left: 0
       };
     });
     

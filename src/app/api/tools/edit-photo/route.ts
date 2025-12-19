@@ -15,6 +15,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { imageUrl, textureUrls, applyWarmFilter, effectStrength, aspectRatio } = body;
 
+    // Get base URL for relative texture paths
+    const protocol = request.headers.get('x-forwarded-proto') || 'http';
+    const host = request.headers.get('host') || 'localhost:3000';
+    const baseUrl = `${protocol}://${host}`;
+
     if (!imageUrl) {
       return NextResponse.json({ error: "No image URL provided" }, { status: 400 });
     }
@@ -33,7 +38,7 @@ export async function POST(request: NextRequest) {
         try {
           // Handle relative URLs - decode them properly
           const decodedUrl = decodeURIComponent(url);
-          const fullUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}${decodedUrl}`;
+          const fullUrl = url.startsWith('http') ? url : `${baseUrl}${decodedUrl}`;
           const texRes = await fetch(fullUrl);
           if (!texRes.ok) {
             console.error(`Failed to fetch texture: ${fullUrl} - ${texRes.statusText}`);
