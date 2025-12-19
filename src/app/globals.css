@@ -13,3 +13,23 @@ body {
 .accent-pill {
   @apply inline-flex items-center rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-sm font-medium text-accent;
 }
+
+/* Hide header and footer when welcome screen is active */
+body.welcome-active header,
+body.welcome-active footer {
+  display: none !important;
+}
+
+body.welcome-active main {
+  padding: 0;
+}
+
+/* Welcome screen animations */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(2deg);
+  }
+}

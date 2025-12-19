@@ -23,7 +23,7 @@ export default function LoginPage(): JSX.Element {
     if (redirectParam && redirectParam.startsWith("/")) {
       return redirectParam;
     }
-    return "/promotions";
+    return "/";
   }, [searchParams]);
 
   useEffect(() => {
@@ -83,11 +83,10 @@ export default function LoginPage(): JSX.Element {
       <div className="w-full max-w-md rounded-3xl border border-slate-200/80 bg-white px-8 py-12 text-center shadow-xl shadow-slate-200/40">
         <span className="accent-pill mb-5">Welcome back</span>
         <h1 className="text-3xl font-semibold text-slate-900">
-          Sign in to GreenHaus Admin
+          Sign in to GreenHaus Dashboard
         </h1>
         <p className="mt-3 text-sm text-slate-600">
-          Use your GreenHaus Google account to access admin dashboards, manage
-          stores, and launch promotions.
+          Use your GreenHaus Google account to access content tools, analytics, and ambassador tracking.
         </p>
 
         <button

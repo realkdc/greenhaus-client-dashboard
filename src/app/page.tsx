@@ -1,28 +1,54 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import RequireAuth from "@/components/require-auth";
+import WelcomeScreen from "@/components/welcome-screen";
 
 export default function Home(): JSX.Element {
+  const [showWelcome, setShowWelcome] = useState(true);
+
+  useEffect(() => {
+    // Check if user has already entered in this session
+    const entered = sessionStorage.getItem("greenhaus-entered");
+    if (entered === "true") {
+      setShowWelcome(false);
+      document.body.classList.remove("welcome-active");
+    } else {
+      document.body.classList.add("welcome-active");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showWelcome) {
+      document.body.classList.add("welcome-active");
+    } else {
+      document.body.classList.remove("welcome-active");
+    }
+  }, [showWelcome]);
+
+  const handleEnter = () => {
+    sessionStorage.setItem("greenhaus-entered", "true");
+    setShowWelcome(false);
+  };
+
+  if (showWelcome) {
+    return <WelcomeScreen onEnter={handleEnter} />;
+  }
+
   return (
-    <RequireAuth>
-      <div className="mx-auto flex min-h-full max-w-6xl flex-col gap-12 px-6 py-16">
+    <div className="mx-auto flex min-h-full max-w-6xl flex-col gap-12 px-6 py-16">
       <section className="flex flex-col items-center gap-4 text-center sm:items-start sm:text-left">
-        <span className="accent-pill">GreenHaus Admin</span>
+        <span className="accent-pill">GreenHaus Dashboard</span>
         <h1 className="text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
-          Guide every guest toward a greener stay.
+          GreenHaus Content & Analytics Dashboard
         </h1>
         <p className="max-w-2xl text-lg text-slate-600">
-          Launch promotions, monitor performance, activate stores, and support
-          GreenHaus ambassadors from one streamlined dashboard.
+          Create content, monitor app performance, and track ambassador activity from one streamlined dashboard.
         </p>
       </section>
 
       <section className="grid gap-6 md:grid-cols-2">
         {[
-          {
-            name: "Promotions Dashboard",
-            href: "/promotions",
-            description: "Plan and send targeted push promos built to convert.",
-          },
           {
             name: "Analytics Dashboard",
             href: "/analytics",
@@ -30,22 +56,16 @@ export default function Home(): JSX.Element {
               "Keep tabs on adoption, retention, and engagement across the app.",
           },
           {
-            name: "Stores Dashboard",
-            href: "/stores",
-            description:
-              "Curate pickup spots and manage availability in every city.",
-          },
-          {
             name: "Ambassadors Dashboard",
             href: "/ambassadors",
             description:
-              "Empower GreenHaus crew members with transparent performance data.",
+              "Track ambassador performance and manage QR codes for GreenHaus crew members.",
           },
           {
             name: "Tools Dashboard",
             href: "/tools",
             description:
-              "Access custom tools and automation software to streamline your workflow.",
+              "Access content creation tools including AI caption generation to streamline your workflow.",
           },
         ].map((item) => (
           <Link
@@ -66,6 +86,5 @@ export default function Home(): JSX.Element {
         ))}
       </section>
     </div>
-    </RequireAuth>
   );
 }

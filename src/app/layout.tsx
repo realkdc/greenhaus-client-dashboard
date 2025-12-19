@@ -17,8 +17,8 @@ const robotoMono = Roboto_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GreenHaus Admin",
-  description: "Admin dashboard for managing the GreenHaus mobile experience.",
+  title: "GreenHaus Dashboard",
+  description: "Content creation and analytics dashboard for GreenHaus.",
 };
 
 export default function RootLayout({
@@ -60,7 +60,7 @@ export default function RootLayout({
               <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
                 <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
                   <span className="text-lg font-semibold tracking-tight text-slate-900">
-                    GreenHaus Admin
+                    GreenHaus Dashboard
                   </span>
                   <MainNav />
                 </div>

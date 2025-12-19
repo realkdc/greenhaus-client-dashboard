@@ -1,20 +1,18 @@
 import type { Metadata } from "next";
-import RequireAuth from "@/components/require-auth";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Tools Dashboard | GreenHaus Admin",
+  title: "Tools Dashboard | GreenHaus",
   description: "Access custom tools and software for GreenHaus operations.",
 };
 
 export default function ToolsPage(): JSX.Element {
   return (
-    <RequireAuth>
-      <section className="min-h-full px-6 py-8">
+    <section className="min-h-full px-6 py-8">
         <div className="mx-auto max-w-7xl">
           <div className="mb-8">
             <div className="inline-flex items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent">
-              GreenHaus Admin
+              GreenHaus Dashboard
             </div>
             <h1 className="mt-4 text-4xl font-bold tracking-tight text-slate-900">
               Tools Dashboard
@@ -104,6 +102,5 @@ export default function ToolsPage(): JSX.Element {
           </div>
         </div>
       </section>
-    </RequireAuth>
   );
 }

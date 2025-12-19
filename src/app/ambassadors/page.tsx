@@ -6,7 +6,6 @@ import { db } from '@/lib/firebase';
 import { collection, onSnapshot, orderBy, query, doc, deleteDoc } from 'firebase/firestore';
 import QRCode from 'qrcode';
 import Link from 'next/link';
-import RequireAuth from '@/components/require-auth';
 
 type AmbassadorTier = "seed" | "sprout" | "bloom" | "evergreen";
 
@@ -571,7 +570,7 @@ function EditAmbassadorModal({ ambassador, isOpen, onClose, onSubmit }: EditAmba
 }
 
 export default function AmbassadorsPage() {
-  const { user, loading } = useAuth();
+  const { user } = useAuth(); // Optional - used for createdBy field only
   const [ambassadors, setAmbassadors] = useState<AmbassadorRecord[]>([]);
   const [ambassadorsLoading, setAmbassadorsLoading] = useState(true);
   const [ambassadorsError, setAmbassadorsError] = useState<string | null>(null);
@@ -677,7 +676,7 @@ export default function AmbassadorsPage() {
       },
       body: JSON.stringify({
         ...data,
-        createdBy: user?.email || 'unknown',
+        createdBy: user?.email || 'dashboard-user',
       }),
     });
 
@@ -741,36 +740,10 @@ export default function AmbassadorsPage() {
     return tierConfig[tier] || tierConfig.seed;
   };
 
-  if (loading) {
-    return (
-      <section className="flex min-h-[360px] items-center justify-center px-6 py-16">
-        <div className="flex items-center gap-2 rounded-full border border-slate-200 px-5 py-2 text-sm text-slate-500">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />
-          Loading your session…
-        </div>
-      </section>
-    );
-  }
-
-  if (!user) {
-    return (
-      <section className="flex min-h-[420px] items-center justify-center px-6 py-20">
-        <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white px-8 py-12 text-center shadow-xl shadow-slate-200/40">
-          <span className="accent-pill mb-5">Ambassadors</span>
-          <h1 className="text-3xl font-semibold text-slate-900">
-            Sign in to manage ambassadors
-          </h1>
-          <p className="mt-3 text-sm text-slate-600">
-            Log in with your GreenHaus Google account to view and manage ambassador tracking.
-          </p>
-        </div>
-      </section>
-    );
-  }
+  // No authentication required - page is accessible to all users
 
   return (
-    <RequireAuth>
-      <section className="px-6 py-16">
+    <section className="px-6 py-16">
         <div className="mx-auto w-full max-w-6xl space-y-10">
           <header className="flex flex-col gap-2">
             <span className="accent-pill w-fit">Ambassadors</span>
@@ -1018,6 +991,5 @@ export default function AmbassadorsPage() {
           onSubmit={handleUpdateAmbassador}
         />
       </section>
-    </RequireAuth>
   );
 }

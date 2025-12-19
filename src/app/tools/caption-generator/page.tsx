@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import RequireAuth from "@/components/require-auth";
 import Link from "next/link";
 import { upload } from '@vercel/blob/client';
 import toast from "react-hot-toast";
@@ -256,8 +255,7 @@ export default function CaptionGeneratorPage(): JSX.Element {
     contentName.trim() !== "";
 
   return (
-    <RequireAuth>
-      <section className="min-h-full px-6 py-8">
+    <section className="min-h-full px-6 py-8">
         <div className="mx-auto max-w-4xl">
           {/* Header */}
           <div className="mb-8">
@@ -849,6 +847,5 @@ export default function CaptionGeneratorPage(): JSX.Element {
           </div>
         </div>
       </section>
-    </RequireAuth>
   );
 }
