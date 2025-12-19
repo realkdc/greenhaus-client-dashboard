@@ -31,20 +31,66 @@ export async function addTextOverlay(
   
   for (const field of textFields) {
     const fontFamily = field.font === 'Civane Cond Demi' ? 'Civane Cond Demi' : 'Elaina Script';
-    
-    // Simple text wrapping if maxWidth is provided
     const text = field.text;
+    const maxWidth = width * 0.85; // Allow 85% of width for text
+    const lineHeight = field.fontSize * 1.2;
     
-    svgContent += `
-      <text 
-        x="${field.x}" 
-        y="${field.y}" 
-        font-family="${fontFamily}" 
-        font-size="${field.fontSize}" 
-        fill="${field.color}"
-        text-anchor="middle"
-      >${text}</text>
-    `;
+    // Split by manual line breaks first
+    const lines = text.split('\n');
+    let currentY = field.y;
+    
+    lines.forEach((line, lineIdx) => {
+      // Word wrap each line
+      const words = line.split(' ');
+      let currentLine = '';
+      let currentLineY = currentY;
+      
+      words.forEach((word, wordIdx) => {
+        const testLine = currentLine + (currentLine ? ' ' : '') + word;
+        // Estimate text width (rough approximation: 0.6 * fontSize * charCount)
+        const estimatedWidth = testLine.length * field.fontSize * 0.6;
+        
+        if (estimatedWidth > maxWidth && currentLine) {
+          // Draw current line and start new one
+          svgContent += `
+            <text 
+              x="${field.x}" 
+              y="${currentLineY}" 
+              font-family="${fontFamily}" 
+              font-size="${field.fontSize}" 
+              fill="${field.color}"
+              text-anchor="middle"
+            >${currentLine.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>
+          `;
+          currentLineY += lineHeight;
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      });
+      
+      // Draw the last line of this paragraph
+      if (currentLine) {
+        svgContent += `
+          <text 
+            x="${field.x}" 
+            y="${currentLineY}" 
+            font-family="${fontFamily}" 
+            font-size="${field.fontSize}" 
+            fill="${field.color}"
+            text-anchor="middle"
+          >${currentLine.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>
+        `;
+        currentLineY += lineHeight;
+      }
+      
+      // Add extra space between paragraphs (manual line breaks)
+      if (lineIdx < lines.length - 1) {
+        currentLineY += lineHeight * 0.5;
+      }
+      
+      currentY = currentLineY;
+    });
   }
   
   svgContent += `</svg>`;

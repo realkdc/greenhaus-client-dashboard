@@ -225,21 +225,99 @@ export default function PhotoEditorPage() {
         
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         
-        // Draw Text
+        // Helper function to wrap text and handle line breaks, returns final Y position
+        const drawMultilineText = (
+          text: string,
+          x: number,
+          y: number,
+          maxWidth: number,
+          fontSize: number,
+          font: string,
+          isBold: boolean = false,
+          lineHeight: number = 1.2
+        ): number => {
+          ctx.font = (isBold ? 'bold ' : '') + fontSize + `px "${font}"`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          
+          // Split by line breaks first (manual breaks)
+          const lines = text.split('\n');
+          let currentY = y;
+          
+          lines.forEach((line, lineIdx) => {
+            // Wrap each line if it's too long
+            const words = line.split(' ');
+            let currentLine = '';
+            
+            words.forEach(word => {
+              const testLine = currentLine + (currentLine ? ' ' : '') + word;
+              const metrics = ctx.measureText(testLine);
+              
+              if (metrics.width > maxWidth && currentLine) {
+                // Draw current line and start new one
+                ctx.fillText(currentLine, x, currentY);
+                currentY += fontSize * lineHeight;
+                currentLine = word;
+              } else {
+                currentLine = testLine;
+              }
+            });
+            
+            // Draw the last line
+            if (currentLine) {
+              ctx.fillText(currentLine, x, currentY);
+              currentY += fontSize * lineHeight;
+            }
+            
+            // Add extra space between manual line breaks (paragraphs)
+            if (lineIdx < lines.length - 1) {
+              currentY += fontSize * 0.3;
+            }
+          });
+          
+          return currentY;
+        };
+        
         ctx.fillStyle = textColor;
-        ctx.textAlign = "center";
         
-        // Headline
-        ctx.font = `bold ${Math.round(canvas.width * 0.08)}px "${headlineFont}"`;
-        ctx.fillText(headline, canvas.width / 2, canvas.height * 0.4);
+        // Headline with wrapping (bold)
+        const headlineFontSize = Math.round(canvas.width * 0.08);
+        const headlineStartY = canvas.height * 0.3;
+        const headlineEndY = drawMultilineText(
+          headline, 
+          canvas.width / 2, 
+          headlineStartY, 
+          canvas.width * 0.85, 
+          headlineFontSize, 
+          headlineFont,
+          true
+        );
         
-        // Details
-        ctx.font = `${Math.round(canvas.width * 0.04)}px "${detailsFont}"`;
-        ctx.fillText(details, canvas.width / 2, canvas.height * 0.5);
+        // Details with wrapping (positioned after headline)
+        const detailsFontSize = Math.round(canvas.width * 0.04);
+        const detailsStartY = headlineEndY + 20;
+        const detailsEndY = drawMultilineText(
+          details, 
+          canvas.width / 2, 
+          detailsStartY, 
+          canvas.width * 0.85, 
+          detailsFontSize, 
+          detailsFont,
+          false
+        );
         
-        // CTA
-        ctx.font = `bold ${Math.round(canvas.width * 0.05)}px "${ctaFont}"`;
-        ctx.fillText(cta, canvas.width / 2, canvas.height * 0.7);
+        // CTA with wrapping (bold, positioned near bottom)
+        const ctaFontSize = Math.round(canvas.width * 0.05);
+        const ctaY = Math.max(detailsEndY + 30, canvas.height * 0.65);
+        drawMultilineText(
+          cta, 
+          canvas.width / 2, 
+          ctaY, 
+          canvas.width * 0.85, 
+          ctaFontSize, 
+          ctaFont,
+          true
+        );
       };
     }
   }, [step, editedUrl, headline, details, cta, headlineFont, detailsFont, ctaFont, textColor]);
@@ -257,9 +335,9 @@ export default function PhotoEditorPage() {
         body: JSON.stringify({
           imageUrl: editedUrl,
           textFields: [
-            { text: headline, font: headlineFont, fontSize: 80, color: textColor, x: 540, y: 400 },
-            { text: details, font: detailsFont, fontSize: 40, color: textColor, x: 540, y: 550 },
-            { text: cta, font: ctaFont, fontSize: 50, color: textColor, x: 540, y: 750 },
+            { text: headline, font: headlineFont, fontSize: 80, color: textColor, x: 540, y: 300, maxWidth: 900 },
+            { text: details, font: detailsFont, fontSize: 40, color: textColor, x: 540, y: 450, maxWidth: 900 },
+            { text: cta, font: ctaFont, fontSize: 50, color: textColor, x: 540, y: 650, maxWidth: 900 },
           ],
         }),
       });
@@ -459,11 +537,26 @@ export default function PhotoEditorPage() {
                   <div className="space-y-4">
                     <div>
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Headline</label>
-                      <input 
-                        type="text" 
+                      <textarea 
+                        rows={3}
                         value={headline} 
                         onChange={(e) => setHeadline(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 focus:border-accent focus:ring-accent"
+                        onKeyDown={(e) => {
+                          // Allow Enter to create line breaks
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const textarea = e.target as HTMLTextAreaElement;
+                            const start = textarea.selectionStart;
+                            const end = textarea.selectionEnd;
+                            setHeadline(headline.substring(0, start) + '\n' + headline.substring(end));
+                            // Reset cursor position after state update
+                            setTimeout(() => {
+                              textarea.selectionStart = textarea.selectionEnd = start + 1;
+                            }, 0);
+                          }
+                        }}
+                        placeholder="Type your headline... Press Enter for new line"
+                        className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-accent focus:ring-accent resize-y"
                       />
                       <select 
                         value={headlineFont} 
@@ -478,10 +571,24 @@ export default function PhotoEditorPage() {
                     <div>
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Details</label>
                       <textarea 
-                        rows={2}
+                        rows={3}
                         value={details} 
                         onChange={(e) => setDetails(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 focus:border-accent focus:ring-accent"
+                        onKeyDown={(e) => {
+                          // Allow Enter to create line breaks
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const textarea = e.target as HTMLTextAreaElement;
+                            const start = textarea.selectionStart;
+                            const end = textarea.selectionEnd;
+                            setDetails(details.substring(0, start) + '\n' + details.substring(end));
+                            setTimeout(() => {
+                              textarea.selectionStart = textarea.selectionEnd = start + 1;
+                            }, 0);
+                          }
+                        }}
+                        placeholder="Type your details... Press Enter for new line"
+                        className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-accent focus:ring-accent resize-y"
                       />
                       <select 
                         value={detailsFont} 
@@ -495,11 +602,25 @@ export default function PhotoEditorPage() {
                     </div>
                     <div>
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Call to Action</label>
-                      <input 
-                        type="text" 
+                      <textarea 
+                        rows={2}
                         value={cta} 
                         onChange={(e) => setCta(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 focus:border-accent focus:ring-accent"
+                        onKeyDown={(e) => {
+                          // Allow Enter to create line breaks
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const textarea = e.target as HTMLTextAreaElement;
+                            const start = textarea.selectionStart;
+                            const end = textarea.selectionEnd;
+                            setCta(cta.substring(0, start) + '\n' + cta.substring(end));
+                            setTimeout(() => {
+                              textarea.selectionStart = textarea.selectionEnd = start + 1;
+                            }, 0);
+                          }
+                        }}
+                        placeholder="Type your CTA... Press Enter for new line"
+                        className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-accent focus:ring-accent resize-y"
                       />
                       <select 
                         value={ctaFont} 
