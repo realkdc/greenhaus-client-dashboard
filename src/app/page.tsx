@@ -5,28 +5,52 @@ import Link from "next/link";
 import WelcomeScreen from "@/components/welcome-screen";
 
 export default function Home(): JSX.Element {
-  const [showWelcome, setShowWelcome] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
-    // Check if user has entered in the last 24 hours
-    // Uses localStorage with timestamp to show welcome screen once per day
-    const lastEntered = localStorage.getItem("greenhaus-entered-timestamp");
+    // Check for URL parameter FIRST - this takes priority for demos
+    const urlParams = new URLSearchParams(window.location.search);
+    const forceShow = urlParams.get("showWelcome") === "true";
     
-    if (lastEntered) {
-      const lastEnteredTime = parseInt(lastEntered, 10);
-      const now = Date.now();
-      const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-      
-      // If less than 24 hours have passed, don't show welcome screen
-      if (now - lastEnteredTime < twentyFourHours) {
-        setShowWelcome(false);
-        document.body.classList.remove("welcome-active");
-        return;
-      }
+    console.log("Welcome screen check:", { forceShow, url: window.location.search });
+    
+    if (forceShow) {
+      // Force show - clear any stored timestamp
+      localStorage.removeItem("greenhaus-entered-timestamp");
+      console.log("Forcing welcome screen to show");
+      setShowWelcome(true);
+      document.body.classList.add("welcome-active");
+      return;
     }
     
-    // Show welcome screen if never entered or more than 24 hours have passed
-    document.body.classList.add("welcome-active");
+    // Otherwise, check localStorage for time-based display
+    const lastEntered = localStorage.getItem("greenhaus-entered-timestamp");
+    
+    if (!lastEntered) {
+      // Never entered before - show welcome screen
+      console.log("No previous entry - showing welcome screen");
+      setShowWelcome(true);
+      document.body.classList.add("welcome-active");
+      return;
+    }
+    
+    // Check if enough time has passed (set to 0 for demo - shows every time)
+    const lastEnteredTime = parseInt(lastEntered, 10);
+    const now = Date.now();
+    const timeWindow = 0; // 0 = show every time (change to 5 * 60 * 1000 for 5 minutes after demo)
+    const timeSinceLastEnter = now - lastEnteredTime;
+    
+    console.log("Time check:", { timeSinceLastEnter, timeWindow, shouldShow: timeSinceLastEnter >= timeWindow });
+    
+    if (timeSinceLastEnter >= timeWindow) {
+      // Enough time has passed - show welcome screen
+      setShowWelcome(true);
+      document.body.classList.add("welcome-active");
+    } else {
+      // Too soon - don't show
+      setShowWelcome(false);
+      document.body.classList.remove("welcome-active");
+    }
   }, []);
 
   useEffect(() => {
