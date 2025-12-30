@@ -195,7 +195,7 @@ export default function CaptionGeneratorPage(): JSX.Element {
 
       // Check for video analyses
       if (data.videoAnalyses && data.videoAnalyses.length > 0) {
-        addProgressLog(`✓ Analyzed ${data.videoAnalyses.length} video(s) with Gemini`, "success");
+        addProgressLog(`✓ Analyzed ${data.videoAnalyses.length} video(s)`, "success");
         data.videoAnalyses.forEach((analysis: any) => {
           addProgressLog(`  → ${analysis.fileName} (${analysis.source})`, "info");
         });
@@ -305,10 +305,10 @@ export default function CaptionGeneratorPage(): JSX.Element {
               Caption Generator
             </div>
             <h1 className="mt-4 text-4xl font-bold tracking-tight text-slate-900">
-              AI Caption Generator
+              Caption Generator
             </h1>
             <p className="mt-2 text-slate-600">
-              Upload your content and let AI create on-brand Instagram captions for
+              Upload your content and get on-brand Instagram captions for
               GreenHaus.
             </p>
           </div>
@@ -700,7 +700,7 @@ export default function CaptionGeneratorPage(): JSX.Element {
                       Image Analysis (Gemini)
                     </h3>
                     <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800">
-                      AI Analysis
+                      Analysis
                     </span>
                   </div>
                   <div className="rounded-lg bg-white p-4">
@@ -830,7 +830,7 @@ export default function CaptionGeneratorPage(): JSX.Element {
                     How it works
                   </h3>
                   <p className="mt-1 text-sm text-blue-700 leading-relaxed">
-                    Our AI analyzes your photos and videos to create perfectly tailored Instagram captions that match the GreenHaus brand voice. Simply upload your media, select your post type, and get instant, engaging captions with the right emojis and hashtags.
+                    Upload your photos and videos to get perfectly tailored Instagram captions that match the GreenHaus brand voice. Simply upload your media, select your post type, and get instant, engaging captions with the right emojis and hashtags.
                   </p>
                 </div>
               </div>

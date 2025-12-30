@@ -104,7 +104,13 @@ Keep the description concise but informative, focusing on elements that would be
       prompt += `\n\nPlatform: ${platform}`;
     }
 
-    prompt += `\n\nAt the end, provide a relevant Instagram caption for the content. The caption should be fun, playful, and friendly. Include 3-4 relevant hashtags like #GreenHaus, #HausLife, #CrossvilleTN, or #FlavorForward. End with "21+". Only mention @greenhaus_cannabis if it naturally fits the caption - it's not required.`;
+    prompt += `\n\nIMPORTANT: After your analysis, provide ONLY the Instagram caption on a new line starting with "CAPTION:". The caption should be fun, playful, and friendly. Include 3-4 relevant hashtags like #GreenHaus, #HausLife, #CrossvilleTN, or #FlavorForward. End with "21+". Only mention @greenhaus_cannabis if it naturally fits the caption - it's not required.
+
+Format your response like this:
+[Your analysis here]
+
+CAPTION:
+[Your caption here]`;
 
     // Prepare content parts
     const parts: any[] = [];
@@ -139,62 +145,98 @@ Keep the description concise but informative, focusing on elements that would be
     // Store full analysis separately
     const fullAnalysis = text;
 
-    // Strategy 1: Look for "**Instagram Caption:**" with markdown bold formatting
-    const instagramCaptionMatch = text.match(/\*\*Instagram Caption:\*\*\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
-    if (instagramCaptionMatch && instagramCaptionMatch[1]) {
-        caption = instagramCaptionMatch[1].trim();
-        console.log('[Gemini] Strategy 1 matched: **Instagram Caption:**');
+    // Strategy 1: Look for "CAPTION:" (our explicit format)
+    const explicitCaptionMatch = text.match(/CAPTION:\s*\n*([\s\S]*?)(?=\n\n|$)/i);
+    if (explicitCaptionMatch && explicitCaptionMatch[1]) {
+        caption = explicitCaptionMatch[1].trim();
+        console.log('[Gemini] Strategy 1 matched: CAPTION:');
     }
 
-    // Strategy 2: Look for "Instagram Caption:" without markdown
+    // Strategy 2: Look for "**Instagram Caption:**" with markdown bold formatting
+    if (!caption || caption.length < 10) {
+        const instagramCaptionMatch = text.match(/\*\*Instagram Caption:\*\*\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
+        if (instagramCaptionMatch && instagramCaptionMatch[1]) {
+            caption = instagramCaptionMatch[1].trim();
+            console.log('[Gemini] Strategy 2 matched: **Instagram Caption:**');
+        }
+    }
+
+    // Strategy 3: Look for "Instagram Caption:" without markdown
     if (!caption || caption.length < 10) {
         const captionMatch = text.match(/Instagram Caption:\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
         if (captionMatch && captionMatch[1]) {
             caption = captionMatch[1].trim();
-            console.log('[Gemini] Strategy 2 matched: Instagram Caption: (no markdown)');
+            console.log('[Gemini] Strategy 3 matched: Instagram Caption: (no markdown)');
         }
     }
 
-    // Strategy 2b: Look for "Suggested Instagram Caption" variants
+    // Strategy 4: Look for "Suggested Instagram Caption" variants
     if (!caption || caption.length < 10) {
         const suggestedMatch = text.match(/\*{0,2}Suggested (Instagram )?Caption:?\*{0,2}\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
         if (suggestedMatch && suggestedMatch[2]) {
             caption = suggestedMatch[2].trim();
-            console.log('[Gemini] Strategy 2b matched: Suggested Caption');
+            console.log('[Gemini] Strategy 4 matched: Suggested Caption');
         }
     }
 
-    // Strategy 3: Look for just "Caption:"
+    // Strategy 5: Look for just "Caption:"
     if (!caption || caption.length < 10) {
         const simpleCaptionMatch = text.match(/(?:^|\n)Caption:\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
         if (simpleCaptionMatch && simpleCaptionMatch[1]) {
             caption = simpleCaptionMatch[1].trim();
-            console.log('[Gemini] Strategy 3 matched: Caption:');
+            console.log('[Gemini] Strategy 5 matched: Caption:');
         }
     }
 
-    // Strategy 4: Find the section that looks like a caption (has emojis, hashtags, or @mentions)
+    // Strategy 6: Find the section that looks like a caption (has emojis, hashtags, or @mentions)
     if (!caption || caption.length < 10) {
         const sections = text.split(/\n\n+/);
         for (let i = sections.length - 1; i >= 0; i--) {
             const section = sections[i].trim();
-            if (section.includes('#') || section.includes('@') || /[\u{1F300}-\u{1F9FF}]/u.test(section)) {
+            // Check if this section looks like a caption (has hashtags, emojis, or mentions)
+            // AND doesn't look like analysis (doesn't start with numbered list or "The main", etc.)
+            if ((section.includes('#') || section.includes('@') || /[\u{1F300}-\u{1F9FF}]/u.test(section)) &&
+                !/^(1\.|2\.|3\.|4\.|5\.|The main|Any products|The overall|Any text|Key details)/i.test(section)) {
                 caption = section;
-                console.log('[Gemini] Strategy 4 matched: found section with emoji/hashtag/@mention');
+                console.log('[Gemini] Strategy 6 matched: found section with emoji/hashtag/@mention');
                 break;
             }
         }
     }
 
-    // Strategy 5: Fallback - take the last paragraph
+    // Strategy 7: Find text that contains hashtags and "21+" (strong indicator of caption)
+    if (!caption || caption.length < 10) {
+        const lines = text.split('\n');
+        for (let i = lines.length - 1; i >= 0; i--) {
+            const line = lines[i].trim();
+            if (line.includes('#') && (line.includes('21+') || text.substring(text.indexOf(line)).includes('21+'))) {
+                // Get the paragraph containing this line
+                const paragraphStart = text.lastIndexOf('\n\n', text.indexOf(line));
+                const paragraphEnd = text.indexOf('\n\n', text.indexOf(line) + line.length);
+                const paragraph = text.substring(
+                    paragraphStart >= 0 ? paragraphStart + 2 : 0,
+                    paragraphEnd >= 0 ? paragraphEnd : text.length
+                ).trim();
+                if (paragraph.length > 20) {
+                    caption = paragraph;
+                    console.log('[Gemini] Strategy 7 matched: found paragraph with hashtags and 21+');
+                    break;
+                }
+            }
+        }
+    }
+
+    // Strategy 8: Fallback - take the last paragraph, but only if it looks like a caption
     if (!caption || caption.length < 10) {
         const paragraphs = text.split(/\n\n+/);
         if (paragraphs.length > 1) {
-            caption = paragraphs[paragraphs.length - 1].trim();
-        } else {
-            caption = text.trim();
+            const lastParagraph = paragraphs[paragraphs.length - 1].trim();
+            // Only use if it has hashtags, emojis, or mentions (likely a caption)
+            if (lastParagraph.includes('#') || lastParagraph.includes('@') || /[\u{1F300}-\u{1F9FF}]/u.test(lastParagraph)) {
+                caption = lastParagraph;
+                console.log('[Gemini] Strategy 8 matched: last paragraph with caption indicators');
+            }
         }
-        console.log('[Gemini] Strategy 5 (fallback): last paragraph');
     }
 
     // Cleanup: Remove any remaining labels/headers
@@ -217,12 +259,18 @@ Keep the description concise but informative, focusing on elements that would be
       .replace(/\s*\*+$/g, '')
       .trim();
     
-    // If we accidentally captured the analysis header, try to grab the suggested caption section instead
-    if (/^Image Analysis/i.test(caption)) {
-      const suggested = text.match(/Suggested (Instagram )?Caption:?\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
-      if (suggested && suggested[2]) {
-        caption = suggested[2].trim();
-        console.log('[Gemini] Cleanup fallback: removed Image Analysis block (images)');
+    // If we accidentally captured the analysis (starts with analysis indicators), try to find the actual caption
+    if (/^(Image Analysis|Video Analysis|1\.|2\.|3\.|The main|Any products|The overall)/i.test(caption) || 
+        (caption.length > 200 && !caption.includes('#') && !caption.includes('@'))) {
+      // Try to find a section that looks like a caption
+      const captionSections = text.split(/\n\n+/);
+      for (let i = captionSections.length - 1; i >= 0; i--) {
+        const section = captionSections[i].trim();
+        if (section.includes('#') && (section.includes('21+') || section.length < 500)) {
+          caption = section;
+          console.log('[Gemini] Cleanup fallback: found actual caption section (images)');
+          break;
+        }
       }
     }
 
@@ -288,7 +336,13 @@ Keep the description concise but informative, focusing on elements that would be
       prompt += `\n\nPlatform: ${platform}`;
     }
 
-    prompt += `\n\nAt the end, provide a relevant Instagram caption for the video. The caption should be fun, playful, and friendly. Include 3-4 relevant hashtags like #GreenHaus, #HausLife, #CrossvilleTN, or #FlavorForward. End with "21+". Only mention @greenhaus_cannabis if it naturally fits the caption - it's not required.`;
+    prompt += `\n\nIMPORTANT: After your analysis, provide ONLY the Instagram caption on a new line starting with "CAPTION:". The caption should be fun, playful, and friendly. Include 3-4 relevant hashtags like #GreenHaus, #HausLife, #CrossvilleTN, or #FlavorForward. End with "21+". Only mention @greenhaus_cannabis if it naturally fits the caption - it's not required.
+
+Format your response like this:
+[Your analysis here]
+
+CAPTION:
+[Your caption here]`;
 
     const result = await model.generateContent([
       {
@@ -313,62 +367,98 @@ Keep the description concise but informative, focusing on elements that would be
     // Extract caption from the response
     let caption = "";
 
-    // Strategy 1: Look for "**Instagram Caption:**" with markdown bold formatting
-    const instagramCaptionMatch = text.match(/\*\*Instagram Caption:\*\*\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
-    if (instagramCaptionMatch && instagramCaptionMatch[1]) {
-        caption = instagramCaptionMatch[1].trim();
-        console.log('[Gemini] Strategy 1 matched: **Instagram Caption:**');
+    // Strategy 1: Look for "CAPTION:" (our explicit format)
+    const explicitCaptionMatch = text.match(/CAPTION:\s*\n*([\s\S]*?)(?=\n\n|$)/i);
+    if (explicitCaptionMatch && explicitCaptionMatch[1]) {
+        caption = explicitCaptionMatch[1].trim();
+        console.log('[Gemini] Strategy 1 matched: CAPTION:');
     }
 
-    // Strategy 2: Look for "Instagram Caption:" without markdown
+    // Strategy 2: Look for "**Instagram Caption:**" with markdown bold formatting
+    if (!caption || caption.length < 10) {
+        const instagramCaptionMatch = text.match(/\*\*Instagram Caption:\*\*\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
+        if (instagramCaptionMatch && instagramCaptionMatch[1]) {
+            caption = instagramCaptionMatch[1].trim();
+            console.log('[Gemini] Strategy 2 matched: **Instagram Caption:**');
+        }
+    }
+
+    // Strategy 3: Look for "Instagram Caption:" without markdown
     if (!caption || caption.length < 10) {
         const captionMatch = text.match(/Instagram Caption:\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
         if (captionMatch && captionMatch[1]) {
             caption = captionMatch[1].trim();
-            console.log('[Gemini] Strategy 2 matched: Instagram Caption: (no markdown)');
+            console.log('[Gemini] Strategy 3 matched: Instagram Caption: (no markdown)');
         }
     }
 
-    // Strategy 2b: Look for "Suggested Instagram Caption" variants
+    // Strategy 4: Look for "Suggested Instagram Caption" variants
     if (!caption || caption.length < 10) {
         const suggestedMatch = text.match(/\*{0,2}Suggested (Instagram )?Caption:?\*{0,2}\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
         if (suggestedMatch && suggestedMatch[2]) {
             caption = suggestedMatch[2].trim();
-            console.log('[Gemini] Strategy 2b matched: Suggested Caption');
+            console.log('[Gemini] Strategy 4 matched: Suggested Caption');
         }
     }
 
-    // Strategy 3: Look for just "Caption:"
+    // Strategy 5: Look for just "Caption:"
     if (!caption || caption.length < 10) {
         const simpleCaptionMatch = text.match(/(?:^|\n)Caption:\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
         if (simpleCaptionMatch && simpleCaptionMatch[1]) {
             caption = simpleCaptionMatch[1].trim();
-            console.log('[Gemini] Strategy 3 matched: Caption:');
+            console.log('[Gemini] Strategy 5 matched: Caption:');
         }
     }
 
-    // Strategy 4: Find the section that looks like a caption (has emojis, hashtags, or @mentions)
+    // Strategy 6: Find the section that looks like a caption (has emojis, hashtags, or @mentions)
     if (!caption || caption.length < 10) {
         const sections = text.split(/\n\n+/);
         for (let i = sections.length - 1; i >= 0; i--) {
             const section = sections[i].trim();
-            if (section.includes('#') || section.includes('@') || /[\u{1F300}-\u{1F9FF}]/u.test(section)) {
+            // Check if this section looks like a caption (has hashtags, emojis, or mentions)
+            // AND doesn't look like analysis (doesn't start with numbered list or "The main", etc.)
+            if ((section.includes('#') || section.includes('@') || /[\u{1F300}-\u{1F9FF}]/u.test(section)) &&
+                !/^(1\.|2\.|3\.|4\.|5\.|The main|Any products|The overall|Any text|Key details)/i.test(section)) {
                 caption = section;
-                console.log('[Gemini] Strategy 4 matched: found section with emoji/hashtag/@mention');
+                console.log('[Gemini] Strategy 6 matched: found section with emoji/hashtag/@mention');
                 break;
             }
         }
     }
 
-    // Strategy 5: Fallback - take the last paragraph
+    // Strategy 7: Find text that contains hashtags and "21+" (strong indicator of caption)
+    if (!caption || caption.length < 10) {
+        const lines = text.split('\n');
+        for (let i = lines.length - 1; i >= 0; i--) {
+            const line = lines[i].trim();
+            if (line.includes('#') && (line.includes('21+') || text.substring(text.indexOf(line)).includes('21+'))) {
+                // Get the paragraph containing this line
+                const paragraphStart = text.lastIndexOf('\n\n', text.indexOf(line));
+                const paragraphEnd = text.indexOf('\n\n', text.indexOf(line) + line.length);
+                const paragraph = text.substring(
+                    paragraphStart >= 0 ? paragraphStart + 2 : 0,
+                    paragraphEnd >= 0 ? paragraphEnd : text.length
+                ).trim();
+                if (paragraph.length > 20) {
+                    caption = paragraph;
+                    console.log('[Gemini] Strategy 7 matched: found paragraph with hashtags and 21+');
+                    break;
+                }
+            }
+        }
+    }
+
+    // Strategy 8: Fallback - take the last paragraph, but only if it looks like a caption
     if (!caption || caption.length < 10) {
         const paragraphs = text.split(/\n\n+/);
         if (paragraphs.length > 1) {
-            caption = paragraphs[paragraphs.length - 1].trim();
-        } else {
-            caption = text.trim();
+            const lastParagraph = paragraphs[paragraphs.length - 1].trim();
+            // Only use if it has hashtags, emojis, or mentions (likely a caption)
+            if (lastParagraph.includes('#') || lastParagraph.includes('@') || /[\u{1F300}-\u{1F9FF}]/u.test(lastParagraph)) {
+                caption = lastParagraph;
+                console.log('[Gemini] Strategy 8 matched: last paragraph with caption indicators');
+            }
         }
-        console.log('[Gemini] Strategy 5 (fallback): last paragraph');
     }
 
     // Cleanup: Remove any remaining labels/headers (with or without asterisks)
@@ -396,12 +486,18 @@ Keep the description concise but informative, focusing on elements that would be
       .trim();
     caption = caption.replace(/@GreenhausCannabis/gi, '@greenhaus_cannabis');
     
-    // If we accidentally captured the analysis header, try to grab the suggested caption section instead
-    if (/^Image Analysis/i.test(caption)) {
-      const suggested = text.match(/Suggested (Instagram )?Caption:?\s*\n*([\s\S]*?)(?=\n\n\*\*|\n\n[A-Z][a-z]+:|$)/i);
-      if (suggested && suggested[2]) {
-        caption = suggested[2].trim();
-        console.log('[Gemini] Cleanup fallback: removed Image Analysis block (video)');
+    // If we accidentally captured the analysis (starts with analysis indicators), try to find the actual caption
+    if (/^(Image Analysis|Video Analysis|1\.|2\.|3\.|The main|Any products|The overall)/i.test(caption) || 
+        (caption.length > 200 && !caption.includes('#') && !caption.includes('@'))) {
+      // Try to find a section that looks like a caption
+      const captionSections = text.split(/\n\n+/);
+      for (let i = captionSections.length - 1; i >= 0; i--) {
+        const section = captionSections[i].trim();
+        if (section.includes('#') && (section.includes('21+') || section.length < 500)) {
+          caption = section;
+          console.log('[Gemini] Cleanup fallback: found actual caption section (video)');
+          break;
+        }
       }
     }
     
