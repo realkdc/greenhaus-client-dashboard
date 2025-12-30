@@ -12,12 +12,9 @@ export default function Home(): JSX.Element {
     const urlParams = new URLSearchParams(window.location.search);
     const forceShow = urlParams.get("showWelcome") === "true";
     
-    console.log("Welcome screen check:", { forceShow, url: window.location.search });
-    
     if (forceShow) {
       // Force show - clear any stored timestamp
       localStorage.removeItem("greenhaus-entered-timestamp");
-      console.log("Forcing welcome screen to show");
       setShowWelcome(true);
       document.body.classList.add("welcome-active");
       return;
@@ -28,26 +25,22 @@ export default function Home(): JSX.Element {
     
     if (!lastEntered) {
       // Never entered before - show welcome screen
-      console.log("No previous entry - showing welcome screen");
       setShowWelcome(true);
       document.body.classList.add("welcome-active");
       return;
     }
     
-    // Check if enough time has passed (set to 0 for demo - shows every time)
+    // Check if enough time has passed (24 hours)
     const lastEnteredTime = parseInt(lastEntered, 10);
     const now = Date.now();
-    const timeWindow = 0; // 0 = show every time (change to 5 * 60 * 1000 for 5 minutes after demo)
-    const timeSinceLastEnter = now - lastEnteredTime;
+    const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
     
-    console.log("Time check:", { timeSinceLastEnter, timeWindow, shouldShow: timeSinceLastEnter >= timeWindow });
-    
-    if (timeSinceLastEnter >= timeWindow) {
-      // Enough time has passed - show welcome screen
+    if (now - lastEnteredTime >= twentyFourHours) {
+      // More than 24 hours have passed - show welcome screen
       setShowWelcome(true);
       document.body.classList.add("welcome-active");
     } else {
-      // Too soon - don't show
+      // Less than 24 hours - don't show
       setShowWelcome(false);
       document.body.classList.remove("welcome-active");
     }
