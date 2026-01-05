@@ -41,7 +41,7 @@ export default function RootLayout({
     }
   }
 
-  const hideNav = pathname.startsWith("/legal") || pathname.startsWith("/auth");
+  const hideNav = pathname === "/" || pathname.startsWith("/legal") || pathname.startsWith("/auth");
   const currentYear = new Date().getFullYear();
 
   return (
